@@ -1,0 +1,14 @@
+{
+  "department": "ME",
+  "name": "Mechanical Engineering",
+  "cards": [
+    {"name": "Heavy Machine",     "icon": "🚜", "cost": 5, "health": 15, "damage": 2, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank"},
+    {"name": "Gearwheel Guard",   "icon": "🛡️", "cost": 4, "health": 11, "damage": 1, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank"},
+    {"name": "Robotic Arm",       "icon": "🦾", "cost": 4, "health": 4,  "damage": 3, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged"},
+    {"name": "Steel Rain Cannon", "icon": "🌧️", "cost": 5, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": true,  "role": "Ranged"},
+    {"name": "Mech Warrior",      "icon": "🦿", "cost": 3, "health": 7,  "damage": 2, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast"},
+    {"name": "Gear Runner",       "icon": "🔩", "cost": 2, "health": 4,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast"},
+    {"name": "Mini-Bot",          "icon": "🤖", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 2, "walks": "reckless", "splash": false, "role": "Fast"},
+    {"name": "Quadcopter",        "icon": "🚁", "cost": 3, "health": 3,  "damage": 2, "range": 2, "speed": 2, "walks": "hover",    "splash": false, "role": "Fast"}
+  ]
+}

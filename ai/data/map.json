@@ -1,0 +1,26 @@
+{
+  "name": "Campus river",
+  "rows": [
+    "......~......",
+    ".S====B====S.",
+    ".=..m.~.m..=.",
+    "T=.mm.~.mm.=T",
+    ".=..m.~.m..=.",
+    ".S====B====S.",
+    "......~......"
+  ],
+  "tiles": {
+    "=": {"name": "road",   "cost": 1},
+    "B": {"name": "bridge", "cost": 1},
+    "S": {"name": "start",  "cost": 1},
+    ".": {"name": "grass",  "cost": 2},
+    "m": {"name": "mud",    "cost": 4},
+    "~": {"name": "river",  "cost": null},
+    "T": {"name": "tower",  "cost": null}
+  },
+  "towers": {"left": [0, 3], "right": [12, 3]},
+  "starts": {
+    "left":  {"top": [1, 1],  "bottom": [1, 5]},
+    "right": {"top": [11, 1], "bottom": [11, 5]}
+  }
+}

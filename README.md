@@ -4,7 +4,7 @@ A small strategy game where two KUET departments fight across a campus battlefie
 
 | | |
 |---|---|
-| **Status** | Design agreed on 9 October 2026. **Nothing is built yet.** This file describes what will be built. |
+| **Status** | Design agreed on 9 October 2026. **About 5% is built:** the map, the card files and the grid module, with tests. See [Progress](#progress). Everything else in this file describes what will be built. |
 | **Deadline** | About 23 October 2026 (two weeks from the day this was written) |
 | **Team** | Two students |
 | **Must have** | AI against AI, fun to watch |
@@ -429,11 +429,13 @@ KUET-Royale/
 │   ├── bridge.gd             runs the Python bridge on a thread
 │   └── ui.gd, sfx.gd         colours, fonts, generated sounds
 ├── ai/                       Python: all rules and all AI
+│   ├── show_map.py           prints the map and both rosters (built)
 │   ├── bridge.py             the only file Godot runs
 │   ├── play.py               the whole game in the terminal
 │   ├── balance_check.py      plays many matches, reports fairness and timing
 │   ├── kuet_royale/
-│   │   ├── grid.py           map, terrain costs, neighbours
+│   │   ├── grid.py           map, terrain costs, neighbours (built)
+│   │   ├── cards.py          loads and checks a department's cards (built)
 │   │   ├── search.py         breadth_first, uniform_cost, best_first, a_star
 │   │   ├── fuzzy.py          the three-rule target system
 │   │   ├── deck_csp.py       backtracking with MRV and LCV
@@ -441,28 +443,38 @@ KUET-Royale/
 │   │   ├── alphabeta.py      max_value, min_value with alpha and beta
 │   │   ├── mcts.py           Node, ucb1, rollout, backpropagate
 │   │   └── engine.py         match bookkeeping and the event list
-│   ├── data/
+│   ├── data/                 (built)
 │   │   ├── map.json
 │   │   ├── cards_cse.json
 │   │   └── cards_me.json
-│   └── tests/                one test file per algorithm
+│   └── tests/                one test file per module (grid and cards built)
 └── docs/                     report and slides
 ```
 
 ---
 
-## 11. Running it (once built)
+## 11. Running it
+
+### Works today
+
+Print the battlefield and both rosters:
+
+```bash
+cd ai && python3 show_map.py
+```
+
+Run the tests (25 so far, passing on Python 3.9 and 3.13):
+
+```bash
+cd ai && python3 -m unittest discover -s tests
+```
+
+### Once the rest is built
 
 Watch a match in the terminal:
 
 ```bash
 cd ai && python3 play.py --left cse --right me
-```
-
-Run the tests:
-
-```bash
-cd ai && python3 -m unittest discover -s tests
 ```
 
 Check fairness and thinking time:
@@ -490,6 +502,18 @@ godot --path .
 | 10 to 11 | 19 to 20 Oct | Search tiles lighting up, commentary, speed control, pick a winner. | A stranger can follow a match without help |
 | 12 | 21 Oct | Human play, EEE and CE cards. Only if everything above works. | |
 | 13 to 14 | 22 to 23 Oct | No new features. Report, slides, viva practice. | Each teammate can explain four algorithms |
+
+### Progress
+
+| Part | State |
+|---|---|
+| Map file and grid module (tiles, costs, neighbours, distance) | Built, tested |
+| Card files for CSE and ME, with a checker | Built, tested |
+| The four path searches | Not started |
+| Battle step and match rules | Not started |
+| Alpha-beta and MCTS | Not started |
+| Fuzzy targeting, CSP deck building | Not started |
+| Godot screen | Not started |
 
 **Roles:** one teammate owns the Python algorithms. The other owns Godot, the card data and the report. Both must be able to explain every algorithm they present.
 
