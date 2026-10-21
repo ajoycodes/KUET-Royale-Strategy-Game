@@ -4,7 +4,7 @@ A small strategy game where two KUET departments fight across a campus battlefie
 
 | | |
 |---|---|
-| **Status** | Built and playable: the Godot game with 32 warrior figures, the same game in the terminal, a balance checker, 111 automated tests and a scripted player that clicks through a whole match. See [what is and is not checked](#15-what-is-and-is-not-checked). |
+| **Status** | Built and playable: the Godot game with 32 warrior figures, the same game in the terminal, a balance checker, 112 automated tests and a scripted player that clicks through a whole match. See [what is and is not checked](#15-what-is-and-is-not-checked). |
 | **Must have** | AI against AI, fun to watch. Built. |
 | **Bonus** | A person against an AI. Built. |
 | **Departments** | CSE, EEE, ME and CE |
@@ -25,9 +25,9 @@ One department thinks with **alpha-beta search**. The other thinks with **Monte 
 
 ### How to play
 
-1. In the menu, pick two departments and who thinks for each: **Alpha-beta**, **MCTS** or **You**. Leave both on an AI to watch.
+1. In the menu, pick two departments and who thinks for each: **Alpha-beta** (the hardest), **MCTS**, **Easy** (MCTS with only 100 random legs a card) or **You**. Leave both on an AI to watch.
 2. On your turn, **click one of your cards**, then **click the left or right lane** on your half of the arena.
-3. Stuck? **Hint** asks alpha-beta for the best card and lane.
+3. Stuck? **Hint** asks alpha-beta for the best card and lane. Your first match is a guided one: a coach points out what to click.
 4. **1x, 2x, 4x**, **Pause** and **Step** let you stop on any move and explain it.
 
 Every card says in one plain sentence what it is good for, for example "Slow wall that hits hard. Play it first."
@@ -391,7 +391,10 @@ Say these openly if asked:
 - **Side panels:** each department's score, tower health, its four cards on a wooden tray, and what its brain thought. Alpha-beta shows the final score each card can force and how many positions it skipped. MCTS shows how many random legs each card won.
 - **Cards** show the figure, the cost, health, damage, range and speed, how the unit walks, and one plain sentence saying what it is good for.
 - **Visible search:** tiles light up in the order a search explored them, one colour per algorithm, and the route is drawn.
-- **Fuzzy priorities** float above the enemies when a unit has to choose a target.
+- **Show the search / Show the tree:** a button on each side's panel opens its last decision as a tree. For alpha-beta, every first card is a branch with the final score it can force and the positions looked at below it; branches the search cut short are greyed out, and the line of play it expects is shown underneath. For MCTS, each branch shows how many random legs went down it and how many it won. The match waits while the tree is open.
+- **Fuzzy panel:** when a unit has several enemies in range, a small panel shows each one's distance and health, how strongly each of the three rules fired, and the priority that decided it.
+- **Greedy against optimal:** when a reckless unit plans its route with best-first search, the route A* would have taken from the same tile is drawn too, with both costs.
+- **Sparks, a castle that crumbles at zero, and a winners' sheet** where the winning department's four warriors jump.
 - **Commentary:** one plain sentence per event, in the strip along the bottom.
 - **Pick a winner:** before an AI against AI match you can back a side.
 - **Turning point:** after each leg, the card that decided it.
@@ -403,7 +406,7 @@ Say these openly if asked:
 | Mode | What it is |
 |---|---|
 | AI against AI | Pick two departments and give each a brain, then watch |
-| You against AI | Choose "You" for one side. Click a card, click a lane. The Hint button asks alpha-beta |
+| You against AI | Choose "You" for one side and Easy, MCTS or Alpha-beta for the other. Click a card, click a lane. The Hint button asks alpha-beta |
 
 ---
 
@@ -501,6 +504,7 @@ KUET-Royale/
 │   ├── characters.gd         the 32 warrior figures, drawn from simple shapes
 │   ├── unit_piece.gd         one unit on the board
 │   ├── card_view.gd          one card
+│   ├── search_view.gd        a decision drawn as a tree (Show the search)
 │   ├── thinking_panel.gd     one side: tower, damage, what its brain thought
 │   ├── bridge.gd             runs the Python bridge on a thread
 │   ├── ui.gd                 colours, fonts, small helpers
@@ -563,7 +567,7 @@ godot --path . -- --watch --left eee --right ce --speed 2
 godot --path . -- --play
 ```
 
-`--watch` goes straight into alpha-beta against MCTS and closes its own pop-ups. `--play` puts a "person" on the left who plays whatever alpha-beta suggests. `--seed 7` makes either one the same match every time.
+`--watch` goes straight into alpha-beta against MCTS and closes its own pop-ups; add `--tour` to have it open each brain's decision tree once by itself. `--play` puts a "person" on the left who plays whatever alpha-beta suggests. `--seed 7` makes either one the same match every time.
 
 All 32 warrior figures on one sheet:
 
@@ -595,7 +599,7 @@ cd ai && python3 balance_check.py
 cd ai && python3 show_map.py
 ```
 
-A scripted player that clicks through a whole match (menu, Hint, a card, a lane, Pause, Step, Resume, 4x, both result sheets) and prints PASS or FAIL for each:
+A scripted player that clicks through a whole match (menu, Hint, a card, a lane, the decision tree, Pause, Step, Resume, 4x, both result sheets) and prints PASS or FAIL for each:
 
 ```bash
 godot --headless --path . -- --uitest
@@ -685,7 +689,7 @@ MCTS against a side that plays at random: MCTS wins 92% from the left and 88% fr
 
 ## 15. What is and is not checked
 
-**Checked by the tests (111, passing on Python 3.9 and 3.13):**
+**Checked by the tests (112, passing on Python 3.9 and 3.13):**
 
 - every hand-worked path cost in this file;
 - A* matches uniform-cost search on 300 random pairs of tiles;
@@ -696,7 +700,7 @@ MCTS against a side that plays at random: MCTS wins 92% from the left and 88% fr
 - a whole match of two legs, through the same bridge the screen uses;
 - every card has a plain sentence saying what it does.
 
-**Checked by a scripted player (`--uitest`, 30 checks, all passing):** it sends mouse clicks to the screen exactly as a mouse would and plays a whole match as the left side: picks "You" in the menu, starts, asks for a Hint and plays it, selects cards and lanes, pauses, steps, resumes, switches to 4x, and reaches both result sheets.
+**Checked by a scripted player (`--uitest`, 33 checks, all passing):** it sends mouse clicks to the screen exactly as a mouse would and plays a whole match as the left side: picks "You" in the menu, starts, asks for a Hint and plays it, selects cards and lanes, opens the other side's decision tree and goes back, pauses, steps, resumes, switches to 4x, and reaches both result sheets.
 
 **Checked by running the game itself:** complete matches in AI against AI mode and in the self-playing "person" mode ran from the menu to the final screen with no script errors, and frames of the menu, the intro, a battle, both result screens and the "How the AI works" page were looked at.
 
