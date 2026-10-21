@@ -392,10 +392,11 @@ func _coach(words: String, at: Vector2, life: float = 0.0) -> void:
 	var text := UI.wrapped(words, 252, 14, UI.INK, 800)
 	text.position = Vector2(14, 10)
 	bubble.add_child(text)
-	bubble.size = Vector2(280, text.get_minimum_size().y + 22)
-	bubble.position = Vector2(clampf(at.x, 8.0, UI.SCREEN.x - 288.0), clampf(at.y, 48.0, UI.SCREEN.y - bubble.size.y - 40.0))
 	bubble.z_index = 70
 	add_child(bubble)
+	# Measured once in the tree: before that the label has no font and reports one line.
+	bubble.size = Vector2(280, text.get_minimum_size().y + 22)
+	bubble.position = Vector2(clampf(at.x, 8.0, UI.SCREEN.x - 288.0), clampf(at.y, 48.0, UI.SCREEN.y - bubble.size.y - 40.0))
 	UI.pop_in(bubble, 0.25)
 	_tip = bubble
 	if life > 0.0:
