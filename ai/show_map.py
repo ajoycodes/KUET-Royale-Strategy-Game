@@ -3,7 +3,7 @@
 
     python3 show_map.py
 """
-from kuet_royale.cards import COST_LIMIT, DECK_SIZE, check_roster, load_roster
+from kuet_royale.cards import COST_LEAST, COST_LIMIT, DECK_SIZE, check_roster, load_roster
 from kuet_royale.grid import LANES, SIDES, load_map
 
 
@@ -36,7 +36,7 @@ def main():
     show_map(load_map())
     for department in ("cse", "me"):
         show_roster(department)
-    print("\nA deck is %d cards costing %d or less in total." % (DECK_SIZE, COST_LIMIT))
+    print("\nA deck is %d cards costing %d to %d in total." % (DECK_SIZE, COST_LEAST, COST_LIMIT))
 
 
 if __name__ == "__main__":

@@ -2,3 +2,4 @@ __pycache__/
 *.pyc
 .godot/
 .DS_Store
+ai/match.json
