@@ -105,6 +105,7 @@ func _run() -> void:
 	var turns := 0
 	var tried_hint := false
 	var tried_pause := false
+	var tried_tree := false
 	while screen != null and is_instance_valid(screen):
 		var my_turn := await _until(func() -> bool: return screen._picking_side == "left" or _button("Start leg 2: ME plays first") != null or _button("Play again") != null, 40.0)
 		if not my_turn:
@@ -119,6 +120,7 @@ func _run() -> void:
 			continue
 		if _button("Play again") != null:
 			_check(true, "the match ends with the final sheet")
+			await _wait(3.0)                     # leave the final sheet up for a moment, for recordings
 			break
 
 		var hand: Array = screen._hands["left"]
@@ -153,12 +155,25 @@ func _run() -> void:
 		_check(played, "clicking a lane plays the card (turn %d)" % (turns + 1))
 		turns += 1
 
+		if played and not tried_tree and _button("Show the tree") != null:
+			# Open the other side's decision as a tree, then go back to the match.
+			tried_tree = true
+			await _wait(0.3)
+			await _click(_centre(_button("Show the tree")))
+			await _wait(0.8)
+			_check(not _find("SearchView").is_empty(), "Show the tree opens the decision as a tree")
+			_check(screen._paused, "the match waits while the tree is open")
+			await _wait(1.0)
+			await _click(_centre(_button("Back to the match")))
+			await _wait(0.4)
+			_check(_find("SearchView").is_empty() and not screen._paused, "Back to the match closes it and carries on")
+
 		if not tried_pause and played:
 			# Pause while the battle plays out, and check that Step moves it on by one beat.
 			tried_pause = true
 			await _wait(0.4)
 			await _click(_centre(_button("Pause")))
-			await _wait(0.3)
+			await _wait(5.0)                     # the battle step under way finishes; nothing after it starts
 			_check(screen._paused, "Pause stops the match")
 			var step := _button("Step")
 			_check(step != null, "a Step button appears while paused")

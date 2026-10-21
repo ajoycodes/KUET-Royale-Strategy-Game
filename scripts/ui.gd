@@ -201,7 +201,7 @@ static func choice_style(made: Button, chosen: bool, color: Color) -> void:
 	var ink := INK if chosen else WHITE
 	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
 		made.add_theme_color_override(state, ink)
-	var margin := 4 if made.size.x < 60 else 14
+	var margin := 4 if made.size.x < 100 else 14
 	for state in ["normal", "hover", "pressed"]:
 		var style := box(fill if state != "hover" else fill.lightened(0.1), 10, fill.lightened(0.16), 2)
 		style.content_margin_left = margin

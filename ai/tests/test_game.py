@@ -97,6 +97,8 @@ class Walking(unittest.TestCase):
         self.assertEqual(searches[0]["route_search"], "best_first")
         self.assertEqual(searches[0]["route"][1], [3, 2])        # straight down, towards the mud
         self.assertEqual(searches[0]["cost"], 9)
+        self.assertEqual(searches[0]["cheapest_cost"], 8)        # what A* would have paid from the same tile
+        self.assertNotIn("cheapest_cost", searches[1])           # a careful unit already walks the A* route
         self.assertEqual(searches[1]["route_search"], "astar")
         self.assertEqual(searches[1]["route"][1], [2, 1])        # back along the road
         self.assertEqual(searches[1]["cost"], 8)
@@ -151,6 +153,9 @@ class Fighting(unittest.TestCase):
         scores = {choice["target"]: choice["priority"] for choice in attack["choices"]}
         self.assertEqual(attack["target"], max(scores, key=scores.get))
         self.assertEqual(len(scores), 2)
+        for choice in attack["choices"]:
+            self.assertEqual(sorted(choice["strengths"]), ["high", "low", "medium"])
+            self.assertTrue(all(0.0 <= value <= 1.0 for value in choice["strengths"].values()))
 
     def test_with_one_enemy_in_range_no_fuzzy_choice_is_made(self):
         match = usual()

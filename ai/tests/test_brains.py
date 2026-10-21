@@ -79,7 +79,7 @@ class AlphaBeta(unittest.TestCase):
         state = State(a_match())
         action, value, table = alphabeta.alpha_beta_decision(state)
         self.assertEqual(value, alphabeta.alpha_beta(state)[0])
-        for move, score, exact in table:
+        for move, score, exact, _ in table:
             true = alphabeta.alpha_beta(result(state, move))[0]
             if exact:
                 self.assertEqual(score, true)
@@ -92,8 +92,8 @@ class AlphaBeta(unittest.TestCase):
     def test_the_right_side_wants_the_score_low(self):
         state = State(a_match(), player=RIGHT)
         action, value, table = alphabeta.alpha_beta_decision(state)
-        self.assertEqual(value, min(score for _, score, exact in table if exact))
-        for move, score, exact in table:
+        self.assertEqual(value, min(score for _, score, exact, _ in table if exact))
+        for move, score, exact, _ in table:
             if not exact:
                 self.assertGreaterEqual(alphabeta.alpha_beta(result(state, move))[0], score)
 

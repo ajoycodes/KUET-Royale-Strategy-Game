@@ -14,7 +14,7 @@ Nothing here is random, nothing is hidden, and the sides strictly take turns,
 so the searches of the course can be used exactly as taught.
 """
 from . import fuzzy
-from .routes import HOVER, ROUTE_SEARCH, SPREAD_SEARCH, STYLES, Routes
+from .routes import CAREFUL, HOVER, RECKLESS, ROUTE_SEARCH, SPREAD_SEARCH, STYLES, Routes
 
 LEFT, RIGHT = 0, 1
 SIDE_NAMES = ("left", "right")
@@ -182,9 +182,13 @@ def battle_step(match, units, towers, log=None, memory=None):
                 attack = {"unit": number, "target": "tower" if foe is None else foe[NUMBER],
                           "at": list(centre), "damage": damage, "splash": splashed}
                 if ranking is not None:
-                    attack["choices"] = [{"target": "tower" if choice[0] is None else choice[0][NUMBER],
-                                          "distance": choice[1], "health": choice[2], "priority": score}
-                                         for choice, score in zip(choices, ranking)]
+                    attack["choices"] = []
+                    for choice, score in zip(choices, ranking):
+                        # The three rule strengths, so the screen can show how the priority came about.
+                        strengths = fuzzy.infer(fuzzy.TARGET, {"distance": choice[1], "health": choice[2]})["strengths"]
+                        attack["choices"].append({"target": "tower" if choice[0] is None else choice[0][NUMBER],
+                                                  "distance": choice[1], "health": choice[2], "priority": score,
+                                                  "strengths": {term: round(value, 2) for term, value in strengths.items()}})
                 entry["attacks"].append(attack)
             continue
 
@@ -269,7 +273,7 @@ def describe_search(match, number, start, goal, style):
     """What the screen needs to show a unit choosing a target and a route to it."""
     routes = match.routes
     route = routes.route(start, goal, style)
-    return {
+    answer = {
         "unit": number,
         "from": list(start),
         "goal": list(goal),
@@ -280,3 +284,9 @@ def describe_search(match, number, start, goal, style):
         "route": [list(tile) for tile in route["route"]],
         "cost": route["cost"],
     }
+    if style == RECKLESS:
+        # What A* would have done from the same tile, so greedy and optimal can be compared on screen.
+        cheapest = routes.route(start, goal, CAREFUL)
+        answer["cheapest_route"] = [list(tile) for tile in cheapest["route"]]
+        answer["cheapest_cost"] = cheapest["cost"]
+    return answer

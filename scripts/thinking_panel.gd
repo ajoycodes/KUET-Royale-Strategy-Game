@@ -4,6 +4,8 @@ extends Control
 ## its four cards on a wooden tray, and what its brain was thinking when it
 ## chose its last card. The cards themselves are placed by the match screen.
 
+signal look(thinking: Dictionary)
+
 const AREA := Vector2(448, 624)
 const ROWS := 3
 const TRAY := Rect2(8, 122, 432, 244)
@@ -24,6 +26,8 @@ var _heading: Label
 var _note: Label
 var _busy: Label
 var _rows: Array = []        # each: {"mark", "name", "lane", "value", "back"}
+var _look: Button
+var _last := {}
 
 
 func _init() -> void:
@@ -69,10 +73,14 @@ func setup(info: Dictionary, side_name: String, side_color: Color) -> void:
 	_tower_text = UI.fitted("", Vector2(360, 93), 74, 13, UI.WHITE, 800, HORIZONTAL_ALIGNMENT_RIGHT)
 	add_child(_tower_text)
 
-	_heading = UI.label("", 13, UI.MUTED, 400)
-	_heading.position = Vector2(16, 374)
-	_heading.size = Vector2(AREA.x - 32, 18)
+	_heading = UI.fitted("", Vector2(16, 374), 290, 13, UI.MUTED)
 	add_child(_heading)
+	_look = UI.small_button("Show the search", 130, UI.GOLD, UI.INK)
+	_look.position = Vector2(AREA.x - 146, 366)
+	_look.visible = false
+	_look.mouse_filter = Control.MOUSE_FILTER_STOP
+	_look.pressed.connect(func() -> void: look.emit(_last))
+	add_child(_look)
 
 	for place in ROWS:
 		var y := 398.0 + place * 44.0
@@ -132,6 +140,8 @@ func set_thinking(now: bool) -> void:
 	_busy.visible = now
 	_heading.visible = not now
 	if now:
+		_look.visible = false
+	if now:
 		_clear_rows()
 		_note.text = ""
 
@@ -149,6 +159,7 @@ func _clear_row(row: Dictionary) -> void:
 
 func show_idle(words: String) -> void:
 	_heading.text = "How it thinks"
+	_look.visible = false
 	_clear_rows()
 	_note.position.y = 402
 	_note.text = words
@@ -162,15 +173,18 @@ func show_thinking(thinking: Dictionary) -> void:
 	if algorithm == "human":
 		show_idle("You chose this card yourself.")
 		return
+	_last = thinking
+	_look.visible = true
+	_look.text = "Show the search" if algorithm == "alphabeta" else "Show the tree"
 	_note.position.y = 536
 	if algorithm == "alphabeta":
-		_heading.text = "Alpha-beta: the final score each card can force"
+		_heading.text = "Alpha-beta: final score each card can force"
 		var skipped := int(thinking["pruned"])
 		_note.text = "Looked at %s positions and skipped %s %s. Plain minimax would need up to %s." % [
 			UI.number(float(thinking["searched"])), UI.number(float(skipped)), "move" if skipped == 1 else "moves",
 			UI.number(float(thinking["plain_minimax"]))]
 	else:
-		_heading.text = "MCTS: how many random legs each card won"
+		_heading.text = "MCTS: random legs each card won"
 		_note.text = "Played %s random legs to the end and backed the card that won most often. C = %d." % [
 			UI.number(float(thinking["repeats"])), int(thinking["exploration"])]
 	for place in ROWS:

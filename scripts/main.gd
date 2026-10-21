@@ -10,6 +10,7 @@ extends Control
 ##     godot --path . -- --uitest             a scripted player clicks through a whole match and prints PASS or FAIL
 ##     godot --path . -- --seed 7             with --watch or --play: always the same match
 ##     godot --path . -- --watch --left eee --right ce      pick the departments
+##     godot --path . -- --watch --tour       also open each brain's decision tree once, by itself
 
 var _menu: MenuScreen
 var _match: MatchScreen
@@ -62,6 +63,7 @@ func _ready() -> void:
 			at = arguments.find("--" + key)
 			if at >= 0 and at + 1 < arguments.size():
 				demo[key] = arguments[at + 1]
+		demo["tour"] = arguments.has("--tour")
 		_start(demo)
 	else:
 		_show_menu(problem, arguments.has("--how"))

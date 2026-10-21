@@ -22,6 +22,7 @@ var _pieces := {}            # unit number -> UnitPiece
 var _towers := {}            # side -> {"tile", "health", "shown", "full", "shake", "face", "count"}
 var _glow := {}              # Vector2i (engine tile) -> Color, whose alpha fades away
 var _lines: Array = []       # {"points", "color", "life", "full", "width"}
+var _sparks: Array = []      # {"at", "color", "life", "full"}: a burst where a blow lands
 var _pick_side := ""         # the side choosing a lane right now, or ""
 var _pick_hover := ""
 var _pick_hint := ""
@@ -170,6 +171,11 @@ func line(points: PackedVector2Array, color: Color, life: float, width: float = 
 	queue_redraw()
 
 
+## A burst of light where a blow lands.
+func spark(at: Vector2, color: Color) -> void:
+	_sparks.append({"at": at, "color": color, "life": 0.4, "full": 0.4})
+
+
 func route_line(route: Array, color: Color, life: float) -> void:
 	var points := PackedVector2Array()
 	for tile in route:
@@ -194,8 +200,11 @@ func float_text(at: Vector2, text: String, color: Color, text_size: int = 19, ri
 
 func set_tower(side: String, health: int) -> void:
 	var tower: Dictionary = _towers[side]
+	if health <= 0 and int(tower["health"]) > 0:
+		tower["shake"] = 2.5
+		float_text(tower_centre(side) + Vector2(0, -44), "Castle down!", UI.GOLD, 24, 30.0, 1.6)
 	if health < int(tower["health"]):
-		tower["shake"] = 1.0
+		tower["shake"] = maxf(float(tower["shake"]), 1.0)
 		float_text(tower_centre(side) + Vector2(42, -8), "-%d" % (int(tower["health"]) - health), UI.RED, 22)
 	tower["health"] = health
 	var tween := create_tween()
@@ -281,6 +290,10 @@ func _process(delta: float) -> void:
 		_lines[place]["life"] -= delta
 		if _lines[place]["life"] <= 0.0:
 			_lines.remove_at(place)
+	for place in range(_sparks.size() - 1, -1, -1):
+		_sparks[place]["life"] -= delta
+		if _sparks[place]["life"] <= 0.0:
+			_sparks.remove_at(place)
 	for side in _towers:
 		if _towers[side]["shake"] > 0.0:
 			_towers[side]["shake"] = maxf(0.0, _towers[side]["shake"] - delta * 3.0)
@@ -370,6 +383,16 @@ func _draw() -> void:
 		var middle := tower_centre(side) + Vector2(sin(_time * 70.0) * 4.0 * float(tower["shake"]), 0)
 		_draw_castle(middle, _colors[side], float(tower["shown"]) / float(tower["full"]))
 
+	# Bursts where blows land.
+	for burst in _sparks:
+		var part: float = clampf(float(burst["life"]) / float(burst["full"]), 0.0, 1.0)
+		var reach := 6.0 + 16.0 * (1.0 - part)
+		var middle: Vector2 = burst["at"]
+		draw_circle(middle, 7.0 * part, Color(1, 1, 1, 0.8 * part))
+		for ray in 8:
+			var way := Vector2(1, 0).rotated(ray * TAU / 8.0 + 0.3)
+			draw_line(middle + way * reach, middle + way * (reach + 7.0), Color(burst["color"], part), 3.0, true)
+
 	# Routes, blows and shots.
 	for entry in _lines:
 		var part: float = clampf(float(entry["life"]) / float(entry["full"]), 0.0, 1.0)
@@ -380,6 +403,9 @@ func _draw() -> void:
 
 
 func _draw_castle(middle: Vector2, color: Color, health_part: float) -> void:
+	if health_part <= 0.0:
+		_draw_ruin(middle, color)
+		return
 	# Shadow, stone keep with battlements, a roof in the department's colour, and a health bar.
 	draw_set_transform(middle + Vector2(0, 24), 0.0, Vector2(1.0, 0.3))
 	draw_circle(Vector2.ZERO, 40.0, Color(0, 0, 0, 0.28))
@@ -403,3 +429,24 @@ func _draw_castle(middle: Vector2, color: Color, health_part: float) -> void:
 	var part := clampf(health_part, 0.0, 1.0)
 	if part > 0.0:
 		draw_style_box(UI.box(color, 5), Rect2(bar.position, Vector2(maxf(8.0, bar.size.x * part), bar.size.y)))
+
+
+## A castle at zero: a broken keep, fallen stones and smoke.
+func _draw_ruin(middle: Vector2, color: Color) -> void:
+	draw_set_transform(middle + Vector2(0, 24), 0.0, Vector2(1.0, 0.3))
+	draw_circle(Vector2.ZERO, 40.0, Color(0, 0, 0, 0.28))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	var keep := PackedVector2Array([middle + Vector2(-34, 24), middle + Vector2(-34, -6), middle + Vector2(-20, -14),
+		middle + Vector2(-8, -2), middle + Vector2(6, -16), middle + Vector2(18, -4), middle + Vector2(34, -10), middle + Vector2(34, 24)])
+	draw_colored_polygon(keep, UI.STONE_DARK)
+	keep.append(keep[0])
+	draw_polyline(keep, EDGE, 3.0, true)
+	draw_line(middle + Vector2(-12, 0), middle + Vector2(-4, 16), EDGE, 2.0)
+	draw_line(middle + Vector2(10, -6), middle + Vector2(14, 12), EDGE, 2.0)
+	for stone in [Vector2(-40, 20), Vector2(38, 18), Vector2(-26, 26), Vector2(28, 27)]:
+		draw_circle(middle + stone, 5.0, EDGE)
+		draw_circle(middle + stone, 3.6, UI.STONE)
+	draw_style_box(UI.box(color.darkened(0.4), 4), Rect2(middle + Vector2(-12, 6), Vector2(24, 12)))
+	for puff in 3:
+		var rise := fmod(_time * 0.6 + puff / 3.0, 1.0)
+		draw_circle(middle + Vector2(-8 + puff * 8 + sin(_time + puff) * 4.0, -16 - rise * 34.0), 6.0 + rise * 8.0, Color(0.55, 0.58, 0.62, 0.55 * (1.0 - rise)))

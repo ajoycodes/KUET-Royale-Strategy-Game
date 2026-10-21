@@ -37,6 +37,10 @@ var _picked := -1
 var _picking_side := ""
 var _hint := {}
 var _bet := ""
+var _toured := {}            # in a tour, which brains have had their tree shown
+var _tip: Control            # the coach's speech bubble, while one is up
+
+static var _coached := false  # the first match a person plays in a session is a guided one
 var _speed_buttons := {}
 var _pause_button: Button
 var _step_button: Button
@@ -151,6 +155,7 @@ func _build_match() -> void:
 		var panel := ThinkingPanel.new()
 		panel.position = PANEL_AT[side]
 		panel.setup(_view["sides"][side], side, _colors[side])
+		panel.look.connect(_open_search.bind(side))
 		add_child(panel)
 		_panels[side] = panel
 		var deck: Array = _view["sides"][side]["deck"]
@@ -223,6 +228,20 @@ func _show_reply(reply: Dictionary) -> void:
 	var move: Dictionary = reply["move"]
 	var side := str(move["side"])
 	_panels[side].show_thinking(reply["thinking"])
+	var algorithm := str(reply["thinking"]["algorithm"])
+	if algorithm == "human" and not _coached and _tip != null:
+		_coached = true
+		_coach("Watch the coloured tiles: each colour is one search algorithm finding a route. Stuck next time? Press Hint.",
+			BOARD_AT + Vector2(28, 250), 6.0)
+	if bool(config.get("tour", false)) and algorithm != "human" and not _toured.has(algorithm):
+		# A guided demo: open this brain's tree by itself, once, then carry on.
+		_toured[algorithm] = true
+		_open_search(reply["thinking"], side)
+		await get_tree().create_timer(4.5).timeout
+		if not _alive:
+			return
+		_close_overlay()
+		_paused = false
 	var comments: Array = reply["comments"]
 	_say(UI.lane_words(str(comments[0]["text"])), _colors[side])
 	_hands[side][int(move["index"])].set_used(true)
@@ -258,12 +277,22 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 		if not _alive:
 			return
 
-	# 2. A unit with several enemies in range: show the fuzzy priorities it compared.
+	# 2. A unit with several enemies in range: show the fuzzy priorities it compared,
+	#    and, for the first such unit, how its three rules fired.
+	var explained := false
 	for attack in step["attacks"]:
 		if attack.has("choices"):
+			if not explained:
+				explained = true
+				_show_fuzzy(attack)                  # the panel shows the scores, so no numbers float up for this one
+				continue
 			for choice in attack["choices"]:
 				var at: Vector2 = _target_point(choice["target"], _foe_of(int(attack["unit"])))
 				_board.float_text(at + Vector2(0, -26), str(choice["priority"]), UI.GOLD, 14, 14.0, 1.0 / _speed)
+	if explained and _speed <= 2.0:
+		await _wait(1.1)
+		if not _alive:
+			return
 
 	# 3. Everybody acts at the same moment.
 	var longest := 0.0
@@ -275,7 +304,10 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 			continue
 		attacker.hop()
 		var target_at := _board.tile_centre(attack["at"])
+		if typeof(attack["target"]) == TYPE_STRING:
+			target_at = _board.tower_centre(_foe_of(int(attack["unit"])))
 		_board.line(PackedVector2Array([attacker.centre(), target_at]), _colors[attacker.side], 0.35 / _speed, 3.0)
+		_board.spark(target_at + Vector2(0, -10), _colors[attacker.side].lightened(0.3))
 		if not (attack["splash"] as Array).is_empty():
 			_board.glow(attack["at"], UI.SEARCH_COLOR["breadth_first"], 0.9)
 	if not (step["attacks"] as Array).is_empty():
@@ -284,6 +316,7 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 		var struck: UnitPiece = _board.piece(int(shot["target"]))
 		if struck != null:
 			_board.line(PackedVector2Array([_board.tower_centre(str(shot["side"])), struck.centre()]), UI.WHITE, 0.3 / _speed, 2.5)
+			_board.spark(struck.centre(), UI.WHITE)
 			Sfx.play("shot")
 	await get_tree().create_timer(maxf(longest, 0.28 / _speed)).timeout
 	if not _alive:
@@ -317,6 +350,8 @@ func _show_search(search: Dictionary, in_full: bool) -> void:
 	var route_color: Color = UI.SEARCH_COLOR[route_search]
 	if not in_full or _speed > 2.0:
 		_board.route_line(search["route"], route_color, 1.2 / _speed)
+		if search.has("cheapest_route"):
+			_board.route_line(search["cheapest_route"], UI.SEARCH_COLOR["astar"], 1.2 / _speed)
 		return
 	Sfx.play("search")
 	if target_search == route_search:
@@ -334,7 +369,121 @@ func _show_search(search: Dictionary, in_full: bool) -> void:
 		return
 	_board.route_line(search["route"], route_color, 1.6 / _speed)
 	_board.glow(search["goal"], UI.WHITE, 1.0)
+	if search.has("cheapest_route"):
+		# Greedy against optimal, from the same tile: draw the route A* would have taken too.
+		var cost := int(search["cost"])
+		var cheapest := int(search["cheapest_cost"])
+		_board.route_line(search["cheapest_route"], UI.SEARCH_COLOR["astar"], 2.2 / _speed)
+		if cost > cheapest:
+			_say("%s: best-first heads straight for the goal, cost %d. A* (yellow) would go round for %d." % [who, cost, cheapest], route_color)
+		else:
+			_say("%s: best-first and A* (yellow) agree here: cost %d." % [who, cost], route_color)
+		await _wait(0.9)
 	await _wait(0.4)
+
+
+## The coach's speech bubble for a first-time player. It goes when the next one
+## comes, or after `life` seconds if one is given. It never blocks a click.
+func _coach(words: String, at: Vector2, life: float = 0.0) -> void:
+	if _tip != null:
+		_tip.queue_free()
+	var bubble := UI.panel(Color(0.99, 0.95, 0.82), 14, UI.GOLD, 3)
+	bubble.size = Vector2(280, 0)
+	var text := UI.wrapped(words, 252, 14, UI.INK, 800)
+	text.position = Vector2(14, 10)
+	bubble.add_child(text)
+	bubble.size = Vector2(280, text.get_minimum_size().y + 22)
+	bubble.position = Vector2(clampf(at.x, 8.0, UI.SCREEN.x - 288.0), clampf(at.y, 48.0, UI.SCREEN.y - bubble.size.y - 40.0))
+	bubble.z_index = 70
+	add_child(bubble)
+	UI.pop_in(bubble, 0.25)
+	_tip = bubble
+	if life > 0.0:
+		get_tree().create_timer(life).timeout.connect(func() -> void:
+			if is_instance_valid(bubble):
+				bubble.queue_free()
+		)
+
+
+## A small panel over the arena: how the fuzzy system ranked the enemies in range.
+func _show_fuzzy(attack: Dictionary) -> void:
+	var attacker: UnitPiece = _board.piece(int(attack["unit"]))
+	if attacker == null:
+		return
+	var choices: Array = attack["choices"]
+	var foe := _foe_of(int(attack["unit"]))
+	var width := 316.0
+	var height := 50.0 + choices.size() * 34.0
+	var at := attacker.centre() + Vector2(-width / 2.0, 34)
+	at.x = clampf(at.x, 10.0, _board.size.x - width - 10.0)
+	if at.y + height > _board.size.y - 6.0:
+		at.y = attacker.centre().y - 44.0 - height
+	at.y = clampf(at.y, 6.0, _board.size.y - height - 6.0)
+	var box := UI.panel(Color(0.05, 0.13, 0.22, 0.94), 12, UI.GOLD, 2)
+	box.position = at
+	box.size = Vector2(width, height)
+	box.z_index = 40
+	_board.add_child(box)
+	var who := str(_names.get(int(attack["unit"]), "A unit"))
+	box.add_child(UI.fitted("Fuzzy rules: who does %s hit?" % who, Vector2(10, 6), width - 20, 13, UI.GOLD, 800))
+	var columns := [["high", UI.RED], ["medium", UI.GOLD], ["low", UI.SEARCH_COLOR["uniform_cost"]]]
+	for place in columns.size():
+		box.add_child(UI.fitted(str(columns[place][0]), Vector2(128 + place * 50, 26), 48, 11, columns[place][1], 800))
+	box.add_child(UI.fitted("score", Vector2(270, 26), 40, 11, UI.WHITE, 800))
+	for row in choices.size():
+		var choice: Dictionary = choices[row]
+		var y := 44.0 + row * 34.0
+		var chosen: bool = typeof(choice["target"]) == typeof(attack["target"]) and choice["target"] == attack["target"]
+		if chosen:
+			var mark := UI.panel(Color(1, 1, 1, 0.12), 8)
+			mark.position = Vector2(4, y - 3)
+			mark.size = Vector2(width - 8, 32)
+			box.add_child(mark)
+		var target_name := "%s castle" % str(_view["sides"][foe]["short"]) if typeof(choice["target"]) == TYPE_STRING else str(_names.get(int(choice["target"]), "enemy"))
+		box.add_child(UI.fitted(target_name, Vector2(10, y - 2), 116, 12, UI.WHITE, 800 if chosen else 400))
+		var distance := int(choice["distance"])
+		var away := "same tile" if distance == 0 else ("1 tile" if distance == 1 else "%d tiles" % distance)
+		box.add_child(UI.fitted("%s, %d%% health" % [away, int(choice["health"])], Vector2(10, y + 13), 116, 10, UI.MUTED))
+		for place in columns.size():
+			var strength := float(choice["strengths"][str(columns[place][0])])
+			var track := ColorRect.new()
+			track.color = Color(1, 1, 1, 0.12)
+			track.position = Vector2(128 + place * 50, y + 6)
+			track.size = Vector2(44, 9)
+			track.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			box.add_child(track)
+			var fill := ColorRect.new()
+			fill.color = columns[place][1]
+			fill.position = track.position
+			fill.size = Vector2(maxf(2.0, 44.0 * strength), 9)
+			fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			box.add_child(fill)
+		box.add_child(UI.fitted(str(choice["priority"]), Vector2(268, y + 1), 44, 13, UI.GOLD if chosen else UI.WHITE, 800))
+	var tween := box.create_tween()
+	tween.tween_interval(maxf(0.7, 2.4 / _speed))
+	tween.tween_property(box, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(box.queue_free)
+
+
+## The brain's last decision drawn as a tree, over the match, which waits meanwhile.
+func _open_search(thinking: Dictionary, side: String) -> void:
+	if _overlay != null or thinking.is_empty():
+		return
+	var was_paused := _paused
+	_paused = true
+	var sheet := _open_overlay(1080, 640)
+	var view := SearchView.new()
+	view.position = Vector2(20, 22)
+	view.setup(thinking, _view, _colors)
+	sheet.add_child(view)
+	var back := UI.button("Back to the match", UI.GOLD, UI.INK, 15)
+	back.position = Vector2(440, 580)
+	back.size = Vector2(200, 42)
+	back.pressed.connect(func() -> void:
+		_close_overlay()
+		_paused = was_paused
+	)
+	sheet.add_child(back)
 
 
 ## Light tiles in the order a search explored them, a few per frame.
@@ -372,6 +521,9 @@ func _human_turn(side: String) -> Array:
 	_say("Your move. Click one of your cards, then a lane.", _colors[side])
 	for card in _hands[side]:
 		card.set_pickable(true)
+	if not _coached and not bool(config.get("robot", false)):
+		_coach("Your turn! Click one of your four cards. Each card says what it is good for.",
+			PANEL_AT[side] + Vector2(150, 64))
 	_hint_button.visible = not bool(config.get("robot", false))
 	if bool(config.get("robot", false)):
 		_robot_plays(side)
@@ -397,6 +549,9 @@ func _on_card_picked(index: int, side: String) -> void:
 		hint_lane = str(_hint["lane"])
 	_board.start_lane_pick(side, hint_lane)
 	_say("Now click the left lane or the right lane on your half of the arena.", _colors[side])
+	if not _coached and _tip != null:
+		_coach("Now click a glowing lane on your half of the arena. Your warrior starts there.",
+			BOARD_AT + Vector2(28, 380.0 if side == "left" else 110.0))
 
 
 func _on_lane_chosen(lane: String) -> void:
@@ -610,7 +765,7 @@ func _match_over() -> void:
 	var left: Dictionary = _view["sides"]["left"]
 	var right: Dictionary = _view["sides"]["right"]
 	var winner := str(_view["winner"])
-	var sheet := _open_overlay(720, 440)
+	var sheet := _open_overlay(760, 560)
 	var human_side := ""
 	for side in ["left", "right"]:
 		if str(_view["sides"][side]["brain"]) == "human":
@@ -641,11 +796,20 @@ func _match_over() -> void:
 		verdict = "You called it." if _bet == winner else ("Nobody won, so no call." if winner == "draw" else "You backed the other side.")
 	elif human_side != "":
 		verdict = "You won." if winner == human_side else ("Level with the machine." if winner == "draw" else "The machine won this one.")
-	_centered(sheet, verdict, 300, 18, UI.GOLD, 800)
+	if winner != "draw":
+		# The winning department's four warriors, jumping.
+		var cheer := Cheer.new()
+		cheer.position = Vector2(40, 288)
+		cheer.size = Vector2(680, 130)
+		for card in _view["sides"][winner]["deck"]:
+			cheer.cards.append(str(card["name"]))
+		cheer.color = _colors[winner]
+		sheet.add_child(cheer)
+	_centered(sheet, verdict, 430, 18, UI.GOLD, 800)
 
-	_overlay_button(sheet, "Play again", "again", Vector2(60, 366), 190, UI.GOLD, UI.INK)
-	_overlay_button(sheet, "Swap the brains", "swap", Vector2(265, 366), 190)
-	_overlay_button(sheet, "Menu", "menu", Vector2(470, 366), 190)
+	_overlay_button(sheet, "Play again", "again", Vector2(80, 486), 190, UI.GOLD, UI.INK)
+	_overlay_button(sheet, "Swap the brains", "swap", Vector2(285, 486), 190)
+	_overlay_button(sheet, "Menu", "menu", Vector2(490, 486), 190)
 	var answer := await _wait_overlay(6.0)
 	if _alive:
 		_leave("menu" if answer == "auto" else answer)
@@ -756,3 +920,23 @@ func _toggle_pause() -> void:
 	_tokens = 0
 	_pause_button.text = "Resume" if _paused else "Pause"
 	_step_button.visible = _paused
+
+
+## The winning warriors jumping on the final sheet.
+class Cheer extends Control:
+	var cards: Array = []
+	var color := Color.WHITE
+	var _time := 0.0
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	func _process(delta: float) -> void:
+		_time += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		for place in cards.size():
+			var hop := absf(sin(_time * 5.0 + place * 0.9)) * 16.0
+			var feet := Vector2(size.x / (cards.size() + 1) * (place + 1), size.y - 6.0 - hop)
+			Characters.draw(self, feet, 1.75, str(cards[place]), color, _time + place, true, 0.5 + 0.5 * sin(_time * 5.0 + place))

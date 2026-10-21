@@ -131,17 +131,17 @@ func _build_side(side: String) -> void:
 	add_child(who)
 	var buttons := {}
 	var at := x + 24.0
-	for brain in ["alphabeta", "mcts", "human"]:
-		var made := UI.button(str(brains[brain]["name"]), UI.PANEL_LIGHT, UI.WHITE, 14)
+	for brain in ["alphabeta", "mcts", "easy", "human"]:
+		var made := UI.button(str(brains[brain]["name"]), UI.PANEL_LIGHT, UI.WHITE, 13)
 		made.position = Vector2(at, 388)
-		made.size = Vector2(120, 40)
+		made.size = Vector2(90, 40)
 		made.pressed.connect(func() -> void:
 			_brain[side] = brain
 			_refresh()
 		)
 		add_child(made)
 		buttons[brain] = made
-		at += 126.0
+		at += 94.0
 	var blurb := UI.wrapped("", 372, 13, UI.MUTED)
 	blurb.position = Vector2(x + 24, 444)
 	add_child(blurb)

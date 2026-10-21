@@ -24,10 +24,12 @@ from .grid import DATA, load_map
 
 SHOWN_FIRST = ("cse", "eee", "me", "ce")          # the order departments are offered in
 BRAINS = {
-    "alphabeta": {"name": "Alpha-beta", "blurb": "Looks at every way the leg can go and skips what cannot matter."},
-    "mcts": {"name": "MCTS", "blurb": "Plays many random legs and backs the cards that keep winning."},
+    "alphabeta": {"name": "Alpha-beta", "blurb": "Looks at every way the leg can go and skips what cannot matter. The hardest to beat."},
+    "mcts": {"name": "MCTS", "blurb": "Plays 1,500 random legs before each card and backs the ones that keep winning."},
+    "easy": {"name": "Easy", "blurb": "MCTS with only 100 random legs before each card. The easiest to beat."},
     "human": {"name": "You", "blurb": "Click a card, then a lane."},
 }
+EASY_REPEATS = 100
 LEGS = 2
 
 
@@ -122,17 +124,20 @@ def think(session, state, brain, rng):
     side = state.player
     if brain == "alphabeta":
         action, value, table = alphabeta.alpha_beta_decision(state)
+        searched, pruned = alphabeta.searched, alphabeta.pruned
         rows = []
-        for move, score, exact in table:
+        for move, score, exact, positions in table:
             row = describe_action(match, side, move)
-            row.update({"score": score, "exact": exact, "chosen": move == action})
+            row.update({"score": score, "exact": exact, "chosen": move == action, "positions": positions})
             rows.append(row)
+        line = best_line(state, action, 3)
         # The best first; of the others, the ones the search finished looking at before the ones it cut short.
         rows.sort(key=lambda row: (not row["chosen"], not row["exact"], -row["score"] if side == LEFT else row["score"]))
         return action, {"algorithm": "alphabeta", "side": SIDE_NAMES[side], "choices": rows, "value": value,
-                        "searched": alphabeta.searched, "pruned": alphabeta.pruned,
+                        "searched": searched, "pruned": pruned, "line": line,
                         "plain_minimax": positions_without_pruning(state)}
-    root = mcts.mcts(state, side, rng=rng)
+    repeats = EASY_REPEATS if brain == "easy" else mcts.REPEATS
+    root = mcts.mcts(state, side, repeats=repeats, rng=rng)
     chosen = mcts.choose_move(root)
     rows = []
     for child in root.children:
@@ -142,7 +147,23 @@ def think(session, state, brain, rng):
         rows.append(row)
     rows.sort(key=lambda row: (not row["chosen"], -row["average"]))
     return chosen.action, {"algorithm": "mcts", "side": SIDE_NAMES[side], "choices": rows,
-                           "repeats": mcts.REPEATS, "exploration": mcts.EXPLORATION}
+                           "repeats": repeats, "exploration": mcts.EXPLORATION}
+
+
+def best_line(state, action, length):
+    """The moves both sides would play next with perfect play, starting with `action`.
+
+    This is what alpha-beta expects to happen; the screen shows it as the
+    chosen branch of the search tree.
+    """
+    line = []
+    while action is not None and len(line) < length:
+        line.append(dict(describe_action(state.match, state.player, action), side=SIDE_NAMES[state.player]))
+        state = result(state, action)
+        if terminal(state):
+            break
+        action = alphabeta.alpha_beta(state)[1]
+    return line
 
 
 def positions_without_pruning(state):

@@ -67,10 +67,11 @@ def alpha_beta(state):
 def alpha_beta_decision(state):
     """The same search, keeping what it learned about every first move, for the screen.
 
-    Returns (best_action, value, table). Each table row is (action, score, exact).
-    exact is False when the search stopped looking at that move early: the
-    score is then only a limit ("no better than this"), which was enough to
-    know the move is not the best.
+    Returns (best_action, value, table). Each table row is
+    (action, score, exact, positions). exact is False when the search stopped
+    looking at that move early: the score is then only a limit ("no better
+    than this"), which was enough to know the move is not the best.
+    positions is how many positions the search looked at below that move.
     """
     global searched, pruned
     searched = 1
@@ -81,6 +82,7 @@ def alpha_beta_decision(state):
     table = []
     for action in actions(state):
         child = result(state, action)
+        before = searched
         if left:
             value, _ = min_value(child, alpha, beta)
             exact = value > alpha
@@ -93,5 +95,5 @@ def alpha_beta_decision(state):
             if best is None or value < best:
                 best, best_action = value, action
             beta = min(beta, value)
-        table.append((action, value, exact))
+        table.append((action, value, exact, searched - before))
     return best_action, best, table

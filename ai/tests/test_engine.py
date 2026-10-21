@@ -77,6 +77,12 @@ class AMatch(unittest.TestCase):
         self.assertEqual(reply["thinking"]["plain_minimax"], 270025)
         self.assertLess(reply["thinking"]["searched"], 270025)
         self.assertTrue(reply["thinking"]["choices"][0]["chosen"])
+        # Every first move says how many positions alpha-beta looked at below it, and together
+        # with the starting position they add up to the whole search.
+        self.assertEqual(sum(row["positions"] for row in reply["thinking"]["choices"]) + 1, reply["thinking"]["searched"])
+        line = reply["thinking"]["line"]
+        self.assertEqual((line[0]["card"], line[0]["lane"]), (reply["move"]["card"], reply["move"]["lane"]))
+        self.assertEqual([step["side"] for step in line], ["left", "right", "left"])
         self.assertEqual(reply["deployed"]["tile"], reply["view"]["sides"]["left"]["starts"][reply["move"]["lane"]])
         self.assertEqual(len(reply["steps"]), 3)
         self.assertTrue(reply["comments"][0]["text"].startswith("CSE plays "))
@@ -84,6 +90,13 @@ class AMatch(unittest.TestCase):
         self.assertEqual(reply["thinking"]["algorithm"], "mcts")
         self.assertEqual(sum(row["visits"] for row in reply["thinking"]["choices"]), reply["thinking"]["repeats"])
         self.assertEqual(sum(card["used"] for card in reply["view"]["sides"]["right"]["deck"]), 1)
+
+    def test_the_easy_level_is_mcts_with_fewer_random_legs(self):
+        session = engine.new_match("cse", "me", "easy", "alphabeta", seed=6)
+        thinking = engine.step(session)["thinking"]
+        self.assertEqual(thinking["algorithm"], "mcts")
+        self.assertEqual(thinking["repeats"], engine.EASY_REPEATS)
+        self.assertEqual(sum(row["visits"] for row in thinking["choices"]), engine.EASY_REPEATS)
 
     def test_alpha_beta_never_slips_so_it_never_causes_a_turning_point(self):
         session = engine.new_match("cse", "me", "alphabeta", "alphabeta", seed=8)
