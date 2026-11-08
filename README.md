@@ -38,7 +38,7 @@ A small strategy game where two KUET departments fight across a campus battlefie
 | **Bonus** | A person against an AI. Built. |
 | **Departments** | CSE, EEE, ME and CE |
 | **Team** | Two students |
-| **Numbers** | Every figure in this file comes from `ai/balance_check.py` or the tests, run on 31 October 2026 |
+| **Numbers** | Every figure in this file comes from `ai/balance_check.py` or the tests, run on 9 November 2026 |
 
 ---
 
@@ -232,7 +232,7 @@ No spells and no buildings. A new card is a new row of numbers in a JSON file, a
 | Heavy Machine | 5 | 12 | 2 | 1 | 1 | Careful | Armour | Tank |
 | Gearwheel Guard | 4 | 11 | 2 | 1 | 1 | Careful | Spikes | Tank |
 | Robotic Arm | 4 | 4 | 3 | 3 | 1 | Careful | Anti-air | Ranged |
-| Steel Rain Cannon | 5 | 5 | 2 | 3 | 1 | Careful | Splash | Ranged |
+| Steel Rain Cannon | 4 | 5 | 2 | 3 | 1 | Careful | Splash | Ranged |
 | Mech Warrior | 3 | 6 | 2 | 1 | 2 | Careful | Self-repair | Fast |
 | Gear Runner | 2 | 4 | 2 | 1 | 3 | Reckless | Mud walker | Fast |
 | Mini-Bot | 2 | 3 | 2 | 1 | 2 | Reckless | Last blast | Fast |
@@ -248,7 +248,7 @@ No spells and no buildings. A new card is a new row of numbers in a JSON file, a
 | Crane Operator | 4 | 6 | 3 | 2 | 1 | Careful | Anti-air | Ranged |
 | Seismic Crew | 5 | 6 | 2 | 3 | 1 | Careful | Splash | Ranged |
 | Surveyor | 2 | 5 | 2 | 1 | 2 | Careful | Finisher | Fast |
-| Construction Crew | 2 | 3 | 2 | 1 | 3 | Reckless | Last blast | Fast |
+| Construction Crew | 2 | 4 | 2 | 1 | 3 | Reckless | Last blast | Fast |
 | Survey Drone | 3 | 5 | 2 | 2 | 2 | Hover | Hover | Fast |
 
 These numbers were tuned with the balance checker until the departments came out close (section 14).
@@ -388,7 +388,7 @@ One case worked by hand: an enemy 1 tile away with half its health left. Near = 
 - **It searches to the very end of the leg.** There is no depth limit and no evaluation function. `utility` is the tower health difference of a finished leg.
 - **Pruning:** when a branch cannot change the final choice, it is skipped. The screen counts skipped moves.
 - **Checked:** the tests compare it with plain minimax written as in Lab 04. The two always give the same score.
-- **Measured:** for the first card of a leg it looks at about 23,600 positions, where plain minimax would need up to 540,049. That takes about 0.6 seconds.
+- **Measured:** for the first card of a leg it looks at about 25,600 positions, where plain minimax would need up to 540,049. That takes about 0.7 seconds.
 - **Say in the viva:** "Alpha-beta returns exactly what plain minimax would return. It only skips branches that cannot matter."
 
 ### 6.7 Monte Carlo Tree Search (the other department's brain)
@@ -766,13 +766,13 @@ Eight cards are new: Cloud Drone, Quadcopter, Electron and Survey Drone are the 
 
 ## 14. Measured results
 
-From `python3 balance_check.py` and `python3 balance_check.py --power` on 31 October 2026. Run them again after any change to a card.
+From `python3 balance_check.py` and `python3 balance_check.py --power` on 9 November 2026, after two cards changed to even out Power mode: Construction Crew went from 3 to 4 health, and Steel Rain Cannon from 5 to 4 cost. Run them again after any change to a card.
 
 ### Thinking time (first card of a leg, the slowest decision)
 
 | Brain | Time | Work |
 |---|---|---|
-| Alpha-beta | 0.61 s on average, 1.42 s at worst | about 23,600 positions; plain minimax would need up to 540,049 |
+| Alpha-beta | 0.66 s on average, 1.37 s at worst | about 25,600 positions; plain minimax would need up to 540,049 |
 | MCTS | 0.22 s | 1,500 random legs |
 
 ### Are the departments even?
@@ -782,17 +782,17 @@ Both sides on alpha-beta, 80 matches of two legs per pairing, decks from the CSP
 | Pairing | First named wins | Second named wins | Level |
 |---|---|---|---|
 | CSE against EEE | 53% | 36% | 10% |
-| CSE against ME | 45% | 41% | 13% |
-| CSE against CE | 51% | 37% | 11% |
-| EEE against ME | 37% | 42% | 20% |
-| EEE against CE | 52% | 42% | 5% |
-| ME against CE | 42% | 40% | 17% |
+| CSE against ME | 50% | 40% | 10% |
+| CSE against CE | 42% | 41% | 16% |
+| EEE against ME | 42% | 43% | 13% |
+| EEE against CE | 33% | 57% | 8% |
+| ME against CE | 47% | 40% | 12% |
 
-With 80 matches each figure can be off by about 11 points either way, so these say "roughly even", not more. CSE against EEE is the least even.
+With 80 matches each figure can be off by about 11 points either way, so these say "roughly even", not more. EEE against CE is the least even, and EEE wins least often overall.
 
 ### Does playing first or second matter?
 
-In a single leg, with both sides on alpha-beta, the side that plays first scores between 1.5 and 2.4 points less than the other on average, and about a fifth of legs end level. That is why a match has two legs.
+In a single leg, with both sides on alpha-beta, the side that plays first scores between 1.6 and 2.1 points less than the other on average, and about a fifth of legs end level. That is why a match has two legs.
 
 ### Is one brain better?
 
@@ -811,17 +811,17 @@ MCTS against a side that plays at random: MCTS wins 100% from the left and 96% f
 
 | Side | Wins | Loses | Level |
 |---|---|---|---|
-| CSE | 50% | 41% | 8% |
-| EEE | 51% | 39% | 8% |
-| ME | 39% | 51% | 8% |
-| CE | 40% | 50% | 9% |
-| Alpha-beta | 55% | 35% | 8% |
+| CSE | 43% | 44% | 11% |
+| EEE | 47% | 44% | 8% |
+| ME | 42% | 48% | 8% |
+| CE | 45% | 41% | 13% |
+| Alpha-beta | 59% | 29% | 10% |
 
-- Each department played 192 of these matches, so each figure can be off by about 7 points. ME and CE are a little behind.
-- The left seat won 185, the right seat 165, and 34 were level.
-- The slowest beat took 0.31 s, against the 0.6 s a beat lasts.
-- The average damage to a tower was 6.8 of 20, and a tower fell in 6% of matches.
-- A side played all eight of its warriors in 45% of matches with alpha-beta and 22% with MCTS. The rest came to hand but were not chosen.
+- Each department played 192 of these matches, so each figure can be off by about 7 points. The four departments now win within 5 points of each other. Before the two card changes ME won 39% and CE 40%, against about 50% for CSE and EEE.
+- The left seat won 170, the right seat 173, and 41 were level.
+- The slowest beat took 0.44 s, against the 0.6 s a beat lasts.
+- The average damage to a tower was 6.6 of 20, and a tower fell in 7% of matches.
+- A side played all eight of its warriors in 50% of matches with alpha-beta and 28% with MCTS. The rest came to hand but were not chosen.
 
 ---
 
