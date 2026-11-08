@@ -6,7 +6,7 @@ extends Control
 ## it can light tiles up to show a path search at work. It knows nothing about
 ## the rules: the match screen tells it what to show.
 
-signal lane_chosen(lane: String)
+signal tile_chosen(spot: int)
 
 const TILE := 48.0
 const EDGE := Color("0d2238")
@@ -19,13 +19,15 @@ var _down := 0               # tiles from top to bottom on screen (the engine's 
 var _colors := {}
 var _sides := {}
 var _pieces := {}            # unit number -> UnitPiece
-var _towers := {}            # side -> {"tile", "health", "shown", "full", "shake", "face", "count"}
+var _towers := {}            # side -> {"tile", "health", "shown", "full", "shake", "face", "count", "aim", "kick"}
 var _glow := {}              # Vector2i (engine tile) -> Color, whose alpha fades away
 var _lines: Array = []       # {"points", "color", "life", "full", "width"}
 var _sparks: Array = []      # {"at", "color", "life", "full"}: a burst where a blow lands
-var _pick_side := ""         # the side choosing a lane right now, or ""
-var _pick_hover := ""
-var _pick_hint := ""
+var _shots: Array = []       # {"from", "to", "life", "full"}: a tower's cannonball on its way
+var _ghosts := {}            # Vector2i (engine tile) -> Color: a drop on its way, in power mode
+var _pick_tiles := {}        # Vector2i (engine tile) -> spot, while a side is choosing where to drop
+var _pick_hover := Vector2i(-1, -1)
+var _pick_hint := Vector2i(-1, -1)
 var _time := 0.0
 
 
@@ -50,7 +52,7 @@ func setup(view: Dictionary, colors: Dictionary) -> void:
 		add_child(count)
 		_towers[side] = {"tile": Vector2i(int(tile[0]), int(tile[1])), "health": int(view["sides"][side]["tower"]),
 			"shown": float(view["sides"][side]["tower"]), "full": int(view["rules"]["tower_health"]), "shake": 0.0,
-			"face": face, "count": count}
+			"face": face, "count": count, "aim": Vector2(0, 1 if side == "left" else -1), "kick": 0.0}
 	_place_towers()
 	queue_redraw()
 
@@ -176,6 +178,27 @@ func spark(at: Vector2, color: Color) -> void:
 	_sparks.append({"at": at, "color": color, "life": 0.4, "full": 0.4})
 
 
+## Where a tower's cannon ends, for a shot and its flash.
+func _muzzle(side: String) -> Vector2:
+	var tower: Dictionary = _towers[side]
+	var aim: Vector2 = tower["aim"]
+	return _cannon_base(side) + aim * (24.0 - 6.0 * float(tower["kick"]))
+
+
+func _cannon_base(side: String) -> Vector2:
+	return tower_centre(side) + Vector2(0, 22.0 if side == "left" else -30.0)
+
+
+## A tower fires: the cannon turns, kicks back, and a ball flies to the target.
+func fire(side: String, to: Vector2, life: float) -> void:
+	var tower: Dictionary = _towers[side]
+	tower["aim"] = (to - _cannon_base(side)).normalized()
+	tower["kick"] = 1.0
+	var from := _muzzle(side)
+	spark(from, UI.GOLD)
+	_shots.append({"from": from, "to": to, "life": life, "full": life})
+
+
 func route_line(route: Array, color: Color, life: float) -> void:
 	var points := PackedVector2Array()
 	for tile in route:
@@ -187,9 +210,9 @@ func route_line(route: Array, color: Color, life: float) -> void:
 ## A number that floats up from a point and fades: damage, or a fuzzy priority.
 func float_text(at: Vector2, text: String, color: Color, text_size: int = 19, rise: float = 26.0, life: float = 0.8) -> void:
 	var made := UI.title(text, text_size, color, 6)
-	made.size = Vector2(80, 24)
+	made.size = Vector2(200, 24)
 	made.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	made.position = at - Vector2(40, 12)
+	made.position = at - Vector2(100, 12)
 	made.z_index = 20
 	add_child(made)
 	var tween := made.create_tween().set_parallel(true)
@@ -223,56 +246,55 @@ func reset_towers(view: Dictionary) -> void:
 	queue_redraw()
 
 
-# ----------------------------------------------------- choosing a lane
+# ----------------------------------------------------- choosing where to drop
 
-func start_lane_pick(side: String, hint: String = "") -> void:
-	_pick_side = side
-	_pick_hint = hint
-	_pick_hover = ""
+## Light up every tile of a side's half. A click on one of them says which spot it is.
+func start_tile_pick(drops: Array, hint_spot: int = -1) -> void:
+	_pick_tiles.clear()
+	for spot in drops.size():
+		_pick_tiles[Vector2i(int(drops[spot][0]), int(drops[spot][1]))] = spot
+	_pick_hint = Vector2i(-1, -1)
+	if hint_spot >= 0:
+		_pick_hint = Vector2i(int(drops[hint_spot][0]), int(drops[hint_spot][1]))
+	_pick_hover = Vector2i(-1, -1)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	queue_redraw()
 
 
-func stop_lane_pick() -> void:
-	_pick_side = ""
-	_pick_hint = ""
-	_pick_hover = ""
+func stop_tile_pick() -> void:
+	_pick_tiles.clear()
+	_pick_hint = Vector2i(-1, -1)
+	_pick_hover = Vector2i(-1, -1)
 	mouse_default_cursor_shape = Control.CURSOR_ARROW
 	queue_redraw()
 
 
-func _lane_rect(side: String, lane: String) -> Rect2:
-	## The half of a lane that belongs to this side: five tiles from its start towards the river.
-	var start: Array = _sides[side]["starts"][lane]
-	var column := float(start[1])
-	var river := float(_down / 2)
-	if side == "left":
-		return Rect2(Vector2(column * TILE, TILE), Vector2(TILE, (river - 1.0) * TILE))
-	return Rect2(Vector2(column * TILE, (river + 1.0) * TILE), Vector2(TILE, (river - 1.0) * TILE))
-
-
-func _lane_at(at: Vector2) -> String:
-	if _pick_side == "":
-		return ""
-	for lane in ["top", "bottom"]:
-		if _lane_rect(_pick_side, lane).grow(14.0).has_point(at):
-			return lane
-	return ""
+func _tile_at(at: Vector2) -> Vector2i:
+	return Vector2i(int(floor(at.y / TILE)), int(floor(at.x / TILE)))
 
 
 func _gui_input(event: InputEvent) -> void:
-	if _pick_side == "":
+	if _pick_tiles.is_empty():
 		return
 	if event is InputEventMouseMotion:
-		var over := _lane_at(event.position)
+		var over := _tile_at(event.position)
 		if over != _pick_hover:
 			_pick_hover = over
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var lane := _lane_at(event.position)
-		if lane != "":
+		var tile := _tile_at(event.position)
+		if _pick_tiles.has(tile):
 			Sfx.play("tap")
-			lane_chosen.emit(lane)
+			tile_chosen.emit(int(_pick_tiles[tile]))
+
+
+## A ring on the tile where a person's drop will land, until the drop arrives.
+func add_ghost(tile: Variant, color: Color) -> void:
+	_ghosts[Vector2i(int(tile[0]), int(tile[1]))] = color
+
+
+func clear_ghost(tile: Variant) -> void:
+	_ghosts.erase(Vector2i(int(tile[0]), int(tile[1])))
 
 
 # ---------------------------------------------------------------- drawing
@@ -294,7 +316,13 @@ func _process(delta: float) -> void:
 		_sparks[place]["life"] -= delta
 		if _sparks[place]["life"] <= 0.0:
 			_sparks.remove_at(place)
+	for place in range(_shots.size() - 1, -1, -1):
+		_shots[place]["life"] -= delta
+		if _shots[place]["life"] <= 0.0:
+			spark(_shots[place]["to"], UI.WHITE)
+			_shots.remove_at(place)
 	for side in _towers:
+		_towers[side]["kick"] = maxf(0.0, float(_towers[side]["kick"]) - delta * 5.0)
 		if _towers[side]["shake"] > 0.0:
 			_towers[side]["shake"] = maxf(0.0, _towers[side]["shake"] - delta * 3.0)
 			_place_towers()
@@ -367,21 +395,26 @@ func _draw() -> void:
 		var area := _tile_rect(key.x, key.y).grow(-2.0)
 		draw_style_box(UI.box(Color(lit, lit.a * 0.5), 8, Color(lit, minf(1.0, lit.a * 1.4)), 3), area)
 
-	# Lanes a person may choose.
-	if _pick_side != "":
-		for lane in ["top", "bottom"]:
-			var area := _lane_rect(_pick_side, lane)
-			var strong: bool = lane == _pick_hover
-			var beat := 0.5 + 0.5 * sin(_time * 5.0)
-			draw_style_box(UI.box(Color(1, 1, 1, 0.55 if strong else 0.22 + 0.14 * beat), 12, Color(UI.WHITE, 1.0 if strong else 0.8), 4), area.grow(2.0))
-			if lane == _pick_hint:
-				draw_style_box(UI.box(Color(0, 0, 0, 0), 14, Color(UI.GOLD, 0.6 + 0.4 * beat), 5), area.grow(8.0))
+	# Tiles a person may drop on.
+	var beat := 0.5 + 0.5 * sin(_time * 5.0)
+	for tile in _pick_tiles:
+		var area := _tile_rect(tile.x, tile.y).grow(-3.0)
+		var strong: bool = tile == _pick_hover
+		draw_style_box(UI.box(Color(1, 1, 1, 0.65 if strong else 0.14 + 0.1 * beat), 8, Color(UI.WHITE, 1.0 if strong else 0.55), 3 if strong else 2), area)
+		if tile == _pick_hint:
+			draw_style_box(UI.box(Color(0, 0, 0, 0), 10, Color(UI.GOLD, 0.6 + 0.4 * beat), 4), area.grow(1.0))
+	for tile in _ghosts:
+		var area := _tile_rect(tile.x, tile.y)
+		draw_arc(area.get_center(), 14.0 + 4.0 * beat, 0.0, TAU, 28, EDGE, 6.0, true)
+		draw_arc(area.get_center(), 14.0 + 4.0 * beat, 0.0, TAU, 28, _ghosts[tile], 4.0, true)
 
 	# The castles.
 	for side in _towers:
 		var tower: Dictionary = _towers[side]
 		var middle := tower_centre(side) + Vector2(sin(_time * 70.0) * 4.0 * float(tower["shake"]), 0)
 		_draw_castle(middle, _colors[side], float(tower["shown"]) / float(tower["full"]))
+		if float(tower["shown"]) > 0.0:
+			_draw_cannon(side)
 
 	# Bursts where blows land.
 	for burst in _sparks:
@@ -392,6 +425,15 @@ func _draw() -> void:
 		for ray in 8:
 			var way := Vector2(1, 0).rotated(ray * TAU / 8.0 + 0.3)
 			draw_line(middle + way * reach, middle + way * (reach + 7.0), Color(burst["color"], part), 3.0, true)
+
+	# Cannonballs.
+	for shot in _shots:
+		var part: float = 1.0 - clampf(float(shot["life"]) / float(shot["full"]), 0.0, 1.0)
+		var ball: Vector2 = (shot["from"] as Vector2).lerp(shot["to"], part)
+		var behind: Vector2 = (shot["from"] as Vector2).lerp(shot["to"], maxf(0.0, part - 0.3))
+		draw_line(behind, ball, Color(UI.GOLD, 0.8), 5.0, true)
+		draw_circle(ball, 7.5, EDGE)
+		draw_circle(ball, 5.5, UI.GOLD)
 
 	# Routes, blows and shots.
 	for entry in _lines:
@@ -429,6 +471,16 @@ func _draw_castle(middle: Vector2, color: Color, health_part: float) -> void:
 	var part := clampf(health_part, 0.0, 1.0)
 	if part > 0.0:
 		draw_style_box(UI.box(color, 5), Rect2(bar.position, Vector2(maxf(8.0, bar.size.x * part), bar.size.y)))
+
+
+## The cannon on a castle's wall, which turns to whatever it shot at last.
+func _draw_cannon(side: String) -> void:
+	var base := _cannon_base(side)
+	var muzzle := _muzzle(side)
+	draw_line(base, muzzle, EDGE, 15.0, true)
+	draw_line(base, muzzle, UI.STONE_DARK.darkened(0.25), 10.0, true)
+	draw_circle(base, 10.0, EDGE)
+	draw_circle(base, 7.5, UI.STONE_DARK)
 
 
 ## A castle at zero: a broken keep, fallen stones and smoke.

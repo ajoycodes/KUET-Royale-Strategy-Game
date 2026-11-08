@@ -9,8 +9,12 @@ signal look(thinking: Dictionary)
 const AREA := Vector2(448, 624)
 const ROWS := 3
 const TRAY := Rect2(8, 122, 432, 244)
+const COIN_ROW := 38.0
+const COIN_BAR := Rect2(50, 376, 250, 16)
 
 var side := "left"
+var coins_mode := false      # power mode: a coin bar under the cards, and everything below it moved down
+var damage_note := "over both legs"
 
 var _color := Color.WHITE
 var _active := false
@@ -28,6 +32,11 @@ var _busy: Label
 var _rows: Array = []        # each: {"mark", "name", "lane", "value", "back"}
 var _look: Button
 var _last := {}
+var _shift := 0.0
+var _coins_most := 10
+var _coins_shown := 0.0
+var _coin_text: Label
+var _next_text: Label
 
 
 func _init() -> void:
@@ -44,6 +53,7 @@ func card_spot(place: int) -> Vector2:
 func setup(info: Dictionary, side_name: String, side_color: Color) -> void:
 	side = side_name
 	_color = side_color
+	_shift = COIN_ROW if coins_mode else 0.0
 	_tower_full = int(info["tower"])
 	_tower = _tower_full
 	_tower_shown = float(_tower)
@@ -67,23 +77,33 @@ func setup(info: Dictionary, side_name: String, side_color: Color) -> void:
 	_damage.pivot_offset = Vector2(70, 27)
 	add_child(_damage)
 	add_child(UI.fitted("damage done", Vector2(330, 52), 104, 12, UI.WHITE, 800, HORIZONTAL_ALIGNMENT_RIGHT))
-	add_child(UI.fitted("over both legs", Vector2(330, 67), 104, 11, UI.WHITE, 400, HORIZONTAL_ALIGNMENT_RIGHT))
+	add_child(UI.fitted(damage_note, Vector2(330, 67), 104, 11, UI.WHITE, 400, HORIZONTAL_ALIGNMENT_RIGHT))
 
 	add_child(UI.fitted("Tower", Vector2(14, 93), 50, 13, UI.MUTED))
 	_tower_text = UI.fitted("", Vector2(360, 93), 74, 13, UI.WHITE, 800, HORIZONTAL_ALIGNMENT_RIGHT)
 	add_child(_tower_text)
 
-	_heading = UI.fitted("", Vector2(16, 374), 290, 13, UI.MUTED)
+	if coins_mode:
+		_coin_text = UI.label("", 15, UI.INK, 800)
+		_coin_text.position = Vector2(16, 372)
+		_coin_text.size = Vector2(28, 24)
+		_coin_text.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_coin_text.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		add_child(_coin_text)
+		_next_text = UI.fitted("", Vector2(308, 374), 130, 12, UI.WHITE, 400, HORIZONTAL_ALIGNMENT_RIGHT)
+		add_child(_next_text)
+
+	_heading = UI.fitted("", Vector2(16, 374 + _shift), 290, 13, UI.MUTED)
 	add_child(_heading)
 	_look = UI.small_button("Show the search", 130, UI.GOLD, UI.INK)
-	_look.position = Vector2(AREA.x - 146, 366)
+	_look.position = Vector2(AREA.x - 146, 366 + _shift)
 	_look.visible = false
 	_look.mouse_filter = Control.MOUSE_FILTER_STOP
 	_look.pressed.connect(func() -> void: look.emit(_last))
 	add_child(_look)
 
 	for place in ROWS:
-		var y := 398.0 + place * 44.0
+		var y := 398.0 + _shift + place * 44.0
 		var back := UI.panel(Color(1, 1, 1, 0.0), 10)
 		back.position = Vector2(10, y)
 		back.size = Vector2(AREA.x - 20, 40)
@@ -101,11 +121,11 @@ func setup(info: Dictionary, side_name: String, side_color: Color) -> void:
 		_rows.append({"mark": mark, "name": title, "lane": lane, "value": value, "back": back})
 
 	_note = UI.wrapped(str(info["brain_blurb"]), AREA.x - 32, 12, UI.MUTED, 400)
-	_note.position = Vector2(16, 536)
+	_note.position = Vector2(16, 536 + _shift)
 	add_child(_note)
 
 	_busy = UI.title("Thinking", 18, UI.GOLD, 6)
-	_busy.position = Vector2(16, 372)
+	_busy.position = Vector2(16, 372 + _shift)
 	_busy.size = Vector2(AREA.x - 32, 24)
 	_busy.visible = false
 	add_child(_busy)
@@ -122,6 +142,18 @@ func set_tower(health: int) -> void:
 		_tower_shown = value
 		queue_redraw()
 	, _tower_shown, float(health), 0.3)
+
+
+## Power mode: how many coins this side has (a part of a coin shows the next one on its way) and the next card.
+func set_coins(value: float, most: int, upcoming: String) -> void:
+	_coins_most = most
+	_coin_text.text = str(int(value))
+	_next_text.text = "Next: " + upcoming
+	var tween := create_tween()
+	tween.tween_method(func(now: float) -> void:
+		_coins_shown = now
+		queue_redraw()
+	, _coins_shown, value, 0.25)
 
 
 func set_damage(total: int) -> void:
@@ -161,7 +193,7 @@ func show_idle(words: String) -> void:
 	_heading.text = "How it thinks"
 	_look.visible = false
 	_clear_rows()
-	_note.position.y = 402
+	_note.position.y = 402 + _shift
 	_note.text = words
 
 
@@ -176,9 +208,12 @@ func show_thinking(thinking: Dictionary) -> void:
 	_last = thinking
 	_look.visible = true
 	_look.text = "Show the search" if algorithm == "alphabeta" else "Show the tree"
-	_note.position.y = 536
-	if algorithm == "alphabeta":
-		_heading.text = "Alpha-beta: final score each card can force"
+	_note.position.y = 536 + _shift
+	if thinking.has("note"):
+		_heading.text = str(thinking["heading"])
+		_note.text = str(thinking["note"])
+	elif algorithm == "alphabeta":
+		_heading.text = "Alpha-beta: final score each card can reach"
 		var skipped := int(thinking["pruned"])
 		_note.text = "Looked at %s positions and skipped %s %s. Plain minimax would need up to %s." % [
 			UI.number(float(thinking["searched"])), UI.number(float(skipped)), "move" if skipped == 1 else "moves",
@@ -197,7 +232,7 @@ func show_thinking(thinking: Dictionary) -> void:
 		row["mark"].text = "▶" if chosen else ""
 		row["name"].text = str(choice["card"])
 		row["name"].add_theme_font_override("font", UI.font(800 if chosen else 400))
-		row["lane"].text = str(UI.LANE_WORD[str(choice["lane"])]) + " lane"
+		row["lane"].text = UI.lane_words(str(choice["where"]))
 		row["back"].add_theme_stylebox_override("panel", UI.box(Color(1, 1, 1, 0.20) if chosen else Color(1, 1, 1, 0.07), 10))
 		if algorithm == "alphabeta":
 			# Scores are shown from this side's own point of view: above 0 is good for it.
@@ -242,3 +277,18 @@ func _draw() -> void:
 	for plank in range(1, 4):
 		var y := TRAY.position.y + plank * TRAY.size.y / 4.0
 		draw_line(Vector2(TRAY.position.x + 8, y), Vector2(TRAY.end.x - 8, y), Color(UI.WOOD_DARK, 0.45), 2.0)
+	if coins_mode:
+		_draw_coins()
+
+
+func _draw_coins() -> void:
+	draw_circle(Vector2(30, 384), 14.0, Color("0d2238"))
+	draw_circle(Vector2(30, 384), 12.0, UI.GOLD)
+	draw_style_box(UI.box(Color("0d2238"), 8), COIN_BAR.grow(2.5))
+	var width := COIN_BAR.size.x / float(_coins_most)
+	for place in _coins_most:
+		var cell := Rect2(COIN_BAR.position + Vector2(place * width + 1.0, 1.0), Vector2(width - 2.0, COIN_BAR.size.y - 2.0))
+		draw_style_box(UI.box(Color("3a4658"), 3), cell)
+		var part := clampf(_coins_shown - place, 0.0, 1.0)
+		if part > 0.0:
+			draw_style_box(UI.box(UI.GOLD if part >= 1.0 else Color(UI.GOLD, 0.55), 3), Rect2(cell.position, Vector2(cell.size.x * part, cell.size.y)))

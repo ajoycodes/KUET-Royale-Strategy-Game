@@ -1,11 +1,11 @@
 class_name MatchScreen
 extends Control
-## One match on screen: the battlefield in the middle, a thinking panel for each
-## side, both decks along the bottom. Python decides everything; this script
-## asks for the next card and then plays back what it is told happened.
+## One match on screen: the battlefield in the middle, and for each side a panel
+## with its cards and what its brain thought. Python decides everything; this
+## script asks for the next card and then plays back what it is told happened.
 
 signal done(action: String)
-signal _chosen(card: int, lane: String)
+signal _chosen(card: int, spot: int)
 signal _overlay_closed(answer: String)
 
 const BOARD_AT := Vector2(472, 50)
@@ -62,9 +62,7 @@ func _exit_tree() -> void:
 # ------------------------------------------------------------------ set-up
 
 func _build_chrome() -> void:
-	var title := UI.title("KUET Royale", 22, UI.GOLD, 8)
-	title.position = Vector2(16, 6)
-	add_child(title)
+	add_child(UI.logo("logo_bar.png", Vector2(16 + 202.5 / 2.0, 24), Vector2(244, 68), 22))
 
 	_status = UI.label("Opening the arena...", 15, UI.WHITE, 800)
 	_status.position = Vector2(340, 10)
@@ -128,6 +126,9 @@ func _begin() -> void:
 		"--left-brain", config["left_brain"], "--right-brain", config["right_brain"]]
 	if config.has("seed"):
 		arguments.append_array(["--seed", str(config["seed"])])
+	for side in ["left", "right"]:
+		if config.has(side + "_deck"):
+			arguments.append_array(["--%s-deck" % side, ",".join(PackedStringArray(config[side + "_deck"]))])
 	var reply: Dictionary = await Bridge.ask(arguments)
 	if not _alive:
 		return
@@ -147,7 +148,7 @@ func _build_match() -> void:
 	_board.position = BOARD_AT
 	_board.setup(_view, _colors)
 	_board.speed = _speed
-	_board.lane_chosen.connect(_on_lane_chosen)
+	_board.tile_chosen.connect(_on_tile_chosen)
 	add_child(_board)
 	move_child(_board, 0)
 
@@ -187,7 +188,7 @@ func _run() -> void:
 			var pick: Array = await _human_turn(side)
 			if not _alive:
 				return
-			arguments.append_array(["--card", str(pick[0]), "--lane", str(pick[1])])
+			arguments.append_array(["--card", str(pick[0]), "--spot", str(pick[1])])
 		else:
 			await _gate()
 			if not _alive:
@@ -295,9 +296,23 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 			return
 
 	# 3. Everybody acts at the same moment.
+	var longest := _act(step, 0.17 / _speed, 0.24 / _speed)
+	await get_tree().create_timer(maxf(longest, 0.28 / _speed)).timeout
+	if not _alive:
+		return
+
+	# 4. All the damage lands together.
+	_land(step)
+	if not lines.is_empty():
+		_say(UI.lane_words(str(lines[lines.size() - 1])))
+	await _wait(0.18)
+
+
+## Units walk and strike, and towers fire. Returns how long the longest walk takes.
+func _act(step: Dictionary, per_tile: float, shot_time: float) -> float:
 	var longest := 0.0
 	for move in step["moves"]:
-		longest = maxf(longest, _board.walk(int(move["unit"]), move["path"], 0.17 / _speed))
+		longest = maxf(longest, _board.walk(int(move["unit"]), move["path"], per_tile))
 	for attack in step["attacks"]:
 		var attacker: UnitPiece = _board.piece(int(attack["unit"]))
 		if attacker == null:
@@ -315,14 +330,17 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 	for shot in step["shots"]:
 		var struck: UnitPiece = _board.piece(int(shot["target"]))
 		if struck != null:
-			_board.line(PackedVector2Array([_board.tower_centre(str(shot["side"])), struck.centre()]), UI.WHITE, 0.3 / _speed, 2.5)
-			_board.spark(struck.centre(), UI.WHITE)
+			_board.fire(str(shot["side"]), struck.centre(), shot_time)
 			Sfx.play("shot")
-	await get_tree().create_timer(maxf(longest, 0.28 / _speed)).timeout
-	if not _alive:
-		return
+	return longest
 
-	# 4. All the damage lands together.
+
+## All the damage of a battle step lands together, with the words of any special that fired.
+func _land(step: Dictionary) -> void:
+	for special in step["specials"]:
+		var who: UnitPiece = _board.piece(int(special["unit"]))
+		if who != null:
+			_board.float_text(who.centre() + Vector2(0, -44), str(special["word"]), UI.GOLD, 15, 18.0, 1.1 / _speed)
 	for hurt in step["hurt"]:
 		var struck: UnitPiece = _board.piece(int(hurt["unit"]))
 		if struck != null:
@@ -337,9 +355,6 @@ func _show_step(step: Dictionary, lines: Array) -> void:
 		Sfx.play("out")
 	_board.sync_units(step["units"], true)
 	_refresh_damage({"left": int(step["towers"]["left"]), "right": int(step["towers"]["right"])})
-	if not lines.is_empty():
-		_say(UI.lane_words(str(lines[lines.size() - 1])))
-	await _wait(0.18)
 
 
 func _show_search(search: Dictionary, in_full: bool) -> void:
@@ -392,7 +407,7 @@ func _coach(words: String, at: Vector2, life: float = 0.0) -> void:
 	var text := UI.wrapped(words, 252, 14, UI.INK, 800)
 	text.position = Vector2(14, 10)
 	bubble.add_child(text)
-	bubble.z_index = 70
+	bubble.z_index = 45                         # over the board, under a sheet
 	add_child(bubble)
 	# Measured once in the tree: before that the label has no font and reports one line.
 	bubble.size = Vector2(280, text.get_minimum_size().y + 22)
@@ -429,8 +444,8 @@ func _show_fuzzy(attack: Dictionary) -> void:
 	box.add_child(UI.fitted("Fuzzy rules: who does %s hit?" % who, Vector2(10, 6), width - 20, 13, UI.GOLD, 800))
 	var columns := [["high", UI.RED], ["medium", UI.GOLD], ["low", UI.SEARCH_COLOR["uniform_cost"]]]
 	for place in columns.size():
-		box.add_child(UI.fitted(str(columns[place][0]), Vector2(128 + place * 50, 26), 48, 11, columns[place][1], 800))
-	box.add_child(UI.fitted("score", Vector2(270, 26), 40, 11, UI.WHITE, 800))
+		box.add_child(UI.fitted(str(columns[place][0]), Vector2(128 + place * 46, 26), 44, 11, columns[place][1], 800))
+	box.add_child(UI.fitted("score", Vector2(262, 26), 44, 11, UI.WHITE, 800, HORIZONTAL_ALIGNMENT_RIGHT))
 	for row in choices.size():
 		var choice: Dictionary = choices[row]
 		var y := 44.0 + row * 34.0
@@ -449,17 +464,20 @@ func _show_fuzzy(attack: Dictionary) -> void:
 			var strength := float(choice["strengths"][str(columns[place][0])])
 			var track := ColorRect.new()
 			track.color = Color(1, 1, 1, 0.12)
-			track.position = Vector2(128 + place * 50, y + 6)
-			track.size = Vector2(44, 9)
+			track.position = Vector2(128 + place * 46, y + 8)
+			track.size = Vector2(40, 9)
 			track.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			box.add_child(track)
 			var fill := ColorRect.new()
 			fill.color = columns[place][1]
 			fill.position = track.position
-			fill.size = Vector2(maxf(2.0, 44.0 * strength), 9)
+			fill.size = Vector2(maxf(2.0, 40.0 * strength), 9)
 			fill.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			box.add_child(fill)
-		box.add_child(UI.fitted(str(choice["priority"]), Vector2(268, y + 1), 44, 13, UI.GOLD if chosen else UI.WHITE, 800))
+		var score := UI.fitted(str(choice["priority"]), Vector2(262, y - 3), 44, 13, UI.GOLD if chosen else UI.WHITE, 800, HORIZONTAL_ALIGNMENT_RIGHT)
+		score.size.y = 32.0                  # centred on the row's mark
+		score.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		box.add_child(score)
 	var tween := box.create_tween()
 	tween.tween_interval(maxf(0.7, 2.4 / _speed))
 	tween.tween_property(box, "modulate:a", 0.0, 0.3)
@@ -519,7 +537,7 @@ func _human_turn(side: String) -> Array:
 	_picked = -1
 	_picking_side = side
 	_hint = {}
-	_say("Your move. Click one of your cards, then a lane.", _colors[side])
+	_say("Your move. Click one of your cards, then any tile on your half.", _colors[side])
 	for card in _hands[side]:
 		card.set_pickable(true)
 	if not _coached and not bool(config.get("robot", false)):
@@ -531,7 +549,7 @@ func _human_turn(side: String) -> Array:
 	var got: Array = await _chosen
 	_picking_side = ""
 	_hint_button.visible = false
-	_board.stop_lane_pick()
+	_board.stop_tile_pick()
 	for card in _hands[side]:
 		card.set_pickable(false)
 		card.set_selected(false)
@@ -545,19 +563,19 @@ func _on_card_picked(index: int, side: String) -> void:
 	_picked = index
 	for card in _hands[side]:
 		card.set_selected(card.index == index)
-	var hint_lane := ""
+	var hint_spot := -1
 	if not _hint.is_empty() and int(_hint["index"]) == index:
-		hint_lane = str(_hint["lane"])
-	_board.start_lane_pick(side, hint_lane)
-	_say("Now click the left lane or the right lane on your half of the arena.", _colors[side])
+		hint_spot = int(_hint["spot"])
+	_board.start_tile_pick(_view["sides"][side]["drops"], hint_spot)
+	_say("Now click any glowing tile on your half of the arena.", _colors[side])
 	if not _coached and _tip != null:
-		_coach("Now click a glowing lane on your half of the arena. Your warrior starts there.",
+		_coach("Now click any glowing tile on your half of the arena. Your warrior starts there.",
 			BOARD_AT + Vector2(28, 380.0 if side == "left" else 110.0))
 
 
-func _on_lane_chosen(lane: String) -> void:
+func _on_tile_chosen(spot: int) -> void:
 	if _picking_side != "" and _picked >= 0:
-		_chosen.emit(_picked, lane)
+		_chosen.emit(_picked, spot)
 
 
 func _on_hint() -> void:
@@ -571,9 +589,9 @@ func _on_hint() -> void:
 	_hint = reply["hint"]
 	for card in _hands[_picking_side]:
 		card.set_hinted(card.index == int(_hint["index"]))
-	_say("Alpha-beta would play %s in the %s lane." % [str(_hint["card"]), str(UI.LANE_WORD[str(_hint["lane"])])], UI.GOLD)
+	_say("Alpha-beta would play %s in the %s." % [str(_hint["card"]), UI.lane_words(str(_hint["where"]))], UI.GOLD)
 	if _picked == int(_hint["index"]):
-		_board.start_lane_pick(_picking_side, str(_hint["lane"]))
+		_board.start_tile_pick(_view["sides"][_picking_side]["drops"], int(_hint["spot"]))
 
 
 ## For demos without a mouse: play whatever alpha-beta suggests.
@@ -585,7 +603,7 @@ func _robot_plays(side: String) -> void:
 	_on_card_picked(int(reply["hint"]["index"]), side)
 	await _wait(0.6)
 	if _alive and _picking_side == side:
-		_on_lane_chosen(str(reply["hint"]["lane"]))
+		_on_tile_chosen(int(reply["hint"]["spot"]))
 
 
 # --------------------------------------------------------------- overlays
@@ -687,8 +705,9 @@ func _intro() -> void:
 				tried += 1
 			else:
 				undone += 1
-		var note := UI.wrapped("Built by CSP backtracking with MRV and LCV: %d choices, %d taken back. Total cost %d (it must be %d or %d)." % [
-			tried, undone, int(info["deck_cost"]), int(_view["rules"]["cost_least"]), int(_view["rules"]["cost_limit"])], 370, 12, UI.MUTED)
+		var how := "Picked by you." if bool(info["picked"]) else "Built by CSP backtracking with MRV and LCV: %d choices, %d taken back." % [tried, undone]
+		var note := UI.wrapped("%s Total cost %d (it must be %d or %d)." % [
+			how, int(info["deck_cost"]), int(_view["rules"]["cost_least"]), int(_view["rules"]["cost_limit"])], 370, 12, UI.MUTED)
 		note.position = Vector2(x, 330)
 		sheet.add_child(note)
 
@@ -699,7 +718,7 @@ func _intro() -> void:
 		_overlay_button(sheet, "Just watch", "", Vector2(355, 428), 150)
 		_overlay_button(sheet, str(right["short"]), "right", Vector2(530, 428), 150, _colors["right"], UI.INK)
 	else:
-		_centered(sheet, "On your turn, click a card and then a lane. The Hint button asks alpha-beta.", 392, 14, UI.MUTED)
+		_centered(sheet, "On your turn, click a card and then any tile on your half. The Hint button asks alpha-beta.", 392, 14, UI.MUTED)
 		_overlay_button(sheet, "Start", "", Vector2(355, 428), 150, UI.GOLD, UI.INK)
 	var answer := await _wait_overlay(2.6)
 	if answer == "left" or answer == "right":
@@ -719,6 +738,7 @@ func _leg_over() -> bool:
 	var legs: Array = _view["legs"]
 	var leg: Dictionary = legs[int(_view["leg"]) - 1]
 	await _wait(0.8)
+	await _gate()
 	if not _alive:
 		return false
 	if bool(_view["match_over"]):
@@ -771,6 +791,8 @@ func _match_over() -> void:
 	for side in ["left", "right"]:
 		if str(_view["sides"][side]["brain"]) == "human":
 			human_side = side
+	if str(_view["sides"]["left"]["brain"]) == "human" and str(_view["sides"]["right"]["brain"]) == "human":
+		human_side = ""                         # two people: no machine to win or lose to
 	Sfx.play("lose" if human_side != "" and winner != human_side and winner != "draw" else "win")
 
 	var headline := "A draw"
@@ -836,11 +858,11 @@ func _score_line(sheet: Panel, y: float, left_score: int, right_score: int) -> v
 func _turning_point_text(leg: Dictionary) -> String:
 	var point: Variant = leg.get("turning_point")
 	if point == null:
-		return "Nobody slipped: every card played was the best one available."
+		return "Nobody slipped: every card played was the best the search could find."
 	var who := str(_view["sides"][str(point["side"])]["short"])
-	return "Turning point: card %d. %s played %s in the %s lane. %s in the %s lane was %d better." % [
-		int(point["play"]), who, str(point["move"]["card"]), str(UI.LANE_WORD[str(point["move"]["lane"])]),
-		str(point["best"]["card"]), str(UI.LANE_WORD[str(point["best"]["lane"])]), int(point["lost"])]
+	return "Turning point: card %d. %s played %s in the %s. %s in the %s was %d better." % [
+		int(point["play"]), who, str(point["move"]["card"]), UI.lane_words(str(point["move"]["where"])),
+		str(point["best"]["card"]), UI.lane_words(str(point["best"]["where"])), int(point["lost"])]
 
 
 func _fail(message: String) -> void:

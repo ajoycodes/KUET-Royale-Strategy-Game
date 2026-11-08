@@ -6,7 +6,7 @@ import unittest
 
 from kuet_royale import deck_csp
 from kuet_royale.cards import COST_LEAST, COST_LIMIT, load_roster
-from kuet_royale.deck_csp import SLOTS, build_deck, get_domain, is_valid, order_cards, select_slot
+from kuet_royale.deck_csp import SLOTS, build_deck, deck_from_picks, get_domain, is_valid, order_cards, select_slot
 
 
 def card(name, role, cost):
@@ -87,6 +87,25 @@ class TheMethod(unittest.TestCase):
         self.assertEqual(SLOTS, ("Tank", "Ranged", "Fast", "Free"))
         self.assertTrue(deck_csp.fits_slot(card("x", "Tank", 1), "Free"))
         self.assertFalse(deck_csp.fits_slot(card("x", "Tank", 1), "Fast"))
+
+
+class ThePickersDeck(unittest.TestCase):
+    def setUp(self):
+        self.cards = load_roster("cse")
+
+    def test_a_legal_pick_comes_back_in_slot_order(self):
+        deck = deck_from_picks(self.cards, ["Stack Runner", "Compiler", "Debugger", "Optimizer"])
+        self.assertEqual([card["name"] for card in deck[:2]], ["Compiler", "Optimizer"])
+        self.assertEqual(deck[2]["role"], "Fast")
+        self.assertEqual(sum(card["cost"] for card in deck), 13)
+
+    def test_a_pick_that_breaks_a_rule_is_refused_with_a_reason(self):
+        for names, reason in ((["Compiler", "Compiler", "Debugger", "Algorithmist"], "different"),
+                              (["Algorithmist", "Optimizer", "Debugger", "Stack Runner"], "Tank"),
+                              (["Compiler", "Kernel", "Algorithmist", "Debugger"], "13 or 14")):
+            with self.assertRaises(ValueError) as caught:
+                deck_from_picks(self.cards, names)
+            self.assertIn(reason, str(caught.exception))
 
 
 if __name__ == "__main__":

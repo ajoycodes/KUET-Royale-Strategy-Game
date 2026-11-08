@@ -27,7 +27,8 @@ to alpha-beta.
 import math
 import random
 
-from .game import LEFT, actions, result, terminal, utility
+from . import game
+from .game import LEFT
 
 EXPLORATION = 2    # C. The lab's worked example uses C = 2.
 REPEATS = 1500     # x. OUR CHOICE: the slides only say "repeated x times".
@@ -43,9 +44,9 @@ class Node:
         self.t = 0               # total value
 
 
-def value(state, seat):
+def value(state, seat, rules=game):
     """OUR CHOICE: what a finished match is worth to the side doing the search."""
-    score = utility(state) if seat == LEFT else -utility(state)
+    score = rules.utility(state) if seat == LEFT else -rules.utility(state)
     if score > 0:
         return 1
     if score < 0:
@@ -69,18 +70,18 @@ def best_ucb1_child(node, C):
     return best
 
 
-def add_children(node):
+def add_children(node, moves, rules=game):
     """For each available action from this node, add a new state to the tree."""
-    for action in actions(node.state):
-        node.children.append(Node(result(node.state, action), action, node))
+    for action in moves:
+        node.children.append(Node(rules.result(node.state, action), action, node))
 
 
-def rollout(state, seat, rng):
+def rollout(state, seat, rng, rules=game):
     while True:
-        if terminal(state):
-            return value(state, seat)
-        action = rng.choice(actions(state))
-        state = result(state, action)
+        if rules.terminal(state):
+            return value(state, seat, rules)
+        action = rng.choice(rules.actions(state))
+        state = rules.result(state, action)
 
 
 def backpropagate(node, v):
@@ -90,10 +91,10 @@ def backpropagate(node, v):
         node = node.parent
 
 
-def mcts(state, seat, repeats=REPEATS, C=EXPLORATION, rng=random):
+def mcts(state, seat, repeats=REPEATS, C=EXPLORATION, rng=random, rules=game):
     """Build the search tree for the side in `seat` and return its root."""
     root = Node(state)
-    add_children(root)             # as on slide 7, where the root already has its actions drawn at N = 0
+    add_children(root, rules.first_moves(state), rules)      # as on slide 7, where the root already has its actions drawn at N = 0
 
     for _ in range(repeats):
         # 1. Selection: is current a leaf node? If not, move to the child that maximizes UCB1.
@@ -102,14 +103,14 @@ def mcts(state, seat, repeats=REPEATS, C=EXPLORATION, rng=random):
             current = best_ucb1_child(current, C)
 
         # 2. Expansion: a leaf that was visited before gets a child for every action.
-        if current.n > 0 and not terminal(current.state):
-            add_children(current)
+        if current.n > 0 and not rules.terminal(current.state):
+            add_children(current, rules.actions(current.state), rules)
             current = current.children[0]      # current = first new child node
         # OUR CHOICE: a visited leaf that is already a finished match cannot be
         # expanded, so its final value is simply read again.
 
         # 3. Simulation
-        v = rollout(current.state, seat, rng)
+        v = rollout(current.state, seat, rng, rules)
 
         # 4. Backpropagation
         backpropagate(current, v)

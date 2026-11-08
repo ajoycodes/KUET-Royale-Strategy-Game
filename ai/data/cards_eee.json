@@ -5,13 +5,13 @@
   "emoji": "⚡",
   "motto": "Hits hard, breaks easily.",
   "cards": [
-    {"name": "Capacitor",         "icon": "🔋", "cost": 5, "health": 13, "damage": 2, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "about": "A sturdy wall that soaks up hits."},
-    {"name": "Transformer",       "icon": "🔌", "cost": 4, "health": 10, "damage": 3, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "about": "A lighter wall that hits hard."},
-    {"name": "Signal Processor",  "icon": "📡", "cost": 4, "health": 4,  "damage": 3, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "about": "Fragile, but hits hard from three tiles away."},
-    {"name": "Circuit Engineer",  "icon": "🔧", "cost": 3, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "about": "Cheap long-range shooter. Keep it behind a wall."},
-    {"name": "Oscillator",        "icon": "〰️", "cost": 5, "health": 5,  "damage": 2, "range": 2, "speed": 1, "walks": "careful",  "splash": true,  "role": "Ranged", "about": "Its pulse also hurts everyone next to the target."},
-    {"name": "Power Engineer",    "icon": "💡", "cost": 3, "health": 5,  "damage": 3, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast",   "about": "Quick fighter with a heavy punch."},
-    {"name": "Relay Runner",      "icon": "🏃", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "about": "Very fast, very fragile. Cuts straight through mud."},
-    {"name": "Electron",          "icon": "✨", "cost": 3, "health": 3,  "damage": 3, "range": 1, "speed": 3, "walks": "hover",    "splash": false, "role": "Fast",   "about": "Floats over everything, fast, and hits hard up close."}
+    {"name": "Capacitor",         "icon": "🔋", "cost": 5, "health": 14, "damage": 2, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "quirk": "blast", "about": "A sturdy wall that soaks up hits."},
+    {"name": "Transformer",       "icon": "🔌", "cost": 4, "health": 11, "damage": 3, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "quirk": "spikes", "about": "A lighter wall that hits hard."},
+    {"name": "Signal Processor",  "icon": "📡", "cost": 4, "health": 4,  "damage": 3, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "quirk": "anti_air", "about": "Fragile, but hits hard from three tiles away."},
+    {"name": "Circuit Engineer",  "icon": "🔧", "cost": 3, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "quirk": "finisher", "about": "Cheap long-range shooter. Keep it behind a wall."},
+    {"name": "Oscillator",        "icon": "〰️", "cost": 5, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": true,  "role": "Ranged", "about": "Its pulse also hurts everyone next to the target."},
+    {"name": "Power Engineer",    "icon": "💡", "cost": 3, "health": 5,  "damage": 3, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast",   "quirk": "siege", "about": "Quick fighter with a heavy punch."},
+    {"name": "Relay Runner",      "icon": "🏃", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "quirk": "mud_walker", "about": "Very fast, very fragile. Cuts straight through mud."},
+    {"name": "Electron",          "icon": "✨", "cost": 3, "health": 3,  "damage": 3, "range": 1, "speed": 3, "walks": "hover",    "splash": false, "role": "Fast",   "about": "Floats over grass and mud, fast, and hits hard up close."}
   ]
 }

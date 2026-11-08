@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Print the battlefield and both rosters in the terminal.
+"""Print the battlefield and every department's roster in the terminal.
 
     python3 show_map.py
 """
 from kuet_royale.cards import COST_LEAST, COST_LIMIT, DECK_SIZE, check_roster, load_roster
+from kuet_royale.engine import list_departments
 from kuet_royale.grid import LANES, SIDES, load_map
 
 
@@ -34,8 +35,8 @@ def show_roster(department):
 
 def main():
     show_map(load_map())
-    for department in ("cse", "me"):
-        show_roster(department)
+    for entry in list_departments():
+        show_roster(entry["id"])
     print("\nA deck is %d cards costing %d to %d in total." % (DECK_SIZE, COST_LEAST, COST_LIMIT))
 
 

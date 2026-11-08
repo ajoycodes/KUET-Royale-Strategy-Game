@@ -5,13 +5,13 @@
   "emoji": "💻",
   "motto": "Fast, cheap and clever.",
   "cards": [
-    {"name": "Compiler",          "icon": "⚙️", "cost": 5, "health": 10, "damage": 3, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "about": "Slow wall that hits hard. Play it first."},
-    {"name": "Kernel",            "icon": "🧠", "cost": 5, "health": 13, "damage": 2, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "about": "The toughest wall in the deck. Slow and steady."},
-    {"name": "Algorithmist",      "icon": "🧮", "cost": 3, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "about": "Shoots from three tiles away. Keep it behind a wall."},
-    {"name": "Optimizer",         "icon": "📈", "cost": 4, "health": 5,  "damage": 3, "range": 2, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "about": "Short-range shooter with a heavy punch."},
+    {"name": "Compiler",          "icon": "⚙️", "cost": 5, "health": 10, "damage": 3, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "quirk": "armour", "about": "Slow wall that hits hard. Play it first."},
+    {"name": "Kernel",            "icon": "🧠", "cost": 5, "health": 13, "damage": 2, "range": 1, "speed": 1, "walks": "careful",  "splash": false, "role": "Tank",   "quirk": "repair", "about": "The toughest wall in the deck. Slow and steady."},
+    {"name": "Algorithmist",      "icon": "🧮", "cost": 3, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "quirk": "finisher", "about": "Shoots from three tiles away. Keep it behind a wall."},
+    {"name": "Optimizer",         "icon": "📈", "cost": 4, "health": 5,  "damage": 3, "range": 2, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "quirk": "anti_air", "about": "Short-range shooter with a heavy punch."},
     {"name": "Logic Bomber",      "icon": "💣", "cost": 4, "health": 5,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": true,  "role": "Ranged", "about": "Long shots that also hurt everyone next to the target."},
-    {"name": "Debugger",          "icon": "🐞", "cost": 2, "health": 4,  "damage": 2, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast",   "about": "Quick, cheap and sticks to the road."},
-    {"name": "Stack Runner",      "icon": "🏃", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "about": "Very fast, very fragile. Cuts straight through mud."},
+    {"name": "Debugger",          "icon": "🐞", "cost": 2, "health": 4,  "damage": 2, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast",   "quirk": "finisher", "about": "Quick, cheap and sticks to the road."},
+    {"name": "Stack Runner",      "icon": "🏃", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "quirk": "blast", "about": "Very fast, very fragile. Cuts straight through mud."},
     {"name": "Cloud Drone",       "icon": "☁️", "cost": 3, "health": 4,  "damage": 2, "range": 2, "speed": 2, "walks": "hover",    "splash": false, "role": "Fast",   "about": "Floats over grass and mud. Shoots from two tiles away."}
   ]
 }

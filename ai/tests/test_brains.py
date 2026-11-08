@@ -71,9 +71,9 @@ class AlphaBeta(unittest.TestCase):
     def test_it_looks_at_far_fewer_positions_than_plain_minimax(self):
         state = State(a_match())
         action, value, table = alphabeta.alpha_beta_decision(state)
-        self.assertLess(alphabeta.searched, 270025 // 5)         # plain minimax: 270,025 positions
+        self.assertLess(alphabeta.searched, 540049 // 5)         # plain minimax: 540,049 positions
         self.assertGreater(alphabeta.pruned, 0)
-        self.assertEqual(len(table), 8)
+        self.assertEqual(len(table), 16)
 
     def test_the_table_for_the_screen_is_honest(self):
         state = State(a_match())
@@ -122,7 +122,7 @@ class MonteCarloTreeSearch(unittest.TestCase):
         root = mcts.mcts(State(a_match()), LEFT, repeats=200, rng=random.Random(3))
         self.assertEqual(root.n, 200)
         self.assertEqual(sum(child.n for child in root.children), 200)
-        self.assertEqual(len(root.children), 8)
+        self.assertEqual(len(root.children), 16)                 # four cards on four spots
         self.assertAlmostEqual(sum(child.t for child in root.children), root.t)
         self.assertTrue(0 <= root.t <= 200)
 

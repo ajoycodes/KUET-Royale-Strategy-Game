@@ -1,16 +1,18 @@
 #!/usr/bin/env python3
-"""The whole game in the terminal.
+"""The classic game in the terminal.
 
     python3 play.py                                   CSE (alpha-beta) against ME (MCTS)
     python3 play.py --left me --right cse             pick the departments
     python3 play.py --left-brain mcts --right-brain alphabeta
-    python3 play.py --left-brain human                play the left side yourself
+    python3 play.py --left-brain human                play the left side yourself, with your own four cards
     python3 play.py --seed 7                          the same seed gives the same match
     python3 play.py --quiet                           only the card plays and the scores
 """
 import argparse
 
 from kuet_royale import engine
+from kuet_royale.cards import COST_LEAST, COST_LIMIT, load_roster
+from kuet_royale.deck_csp import deck_from_picks
 from kuet_royale.game import SIDE_NAMES
 from kuet_royale.grid import load_map
 
@@ -39,29 +41,62 @@ def show_thinking(thinking):
               % (thinking["searched"], thinking["pruned"], thinking["plain_minimax"]))
         for row in thinking["choices"][:3]:
             sign = "" if row["exact"] else "no better than "
-            print("      %s %-18s %-6s score %s%+d" % ("->" if row["chosen"] else "  ", row["card"], row["lane"], sign, row["score"]))
+            print("      %s %-18s %-16s score %s%+d" % ("->" if row["chosen"] else "  ", row["card"], row["where"], sign, row["score"]))
     elif thinking["algorithm"] == "mcts":
         print("    MCTS played %d random legs" % thinking["repeats"])
         for row in thinking["choices"][:3]:
-            print("      %s %-18s %-6s won %3d%% of %d tries" % ("->" if row["chosen"] else "  ", row["card"], row["lane"],
+            print("      %s %-18s %-16s won %3d%% of %d tries" % ("->" if row["chosen"] else "  ", row["card"], row["where"],
                                                               round(row["average"] * 100), row["visits"]))
 
 
+def ask_deck(identity):
+    """A person's own four cards, by name. Nothing typed leaves it to the CSP solver."""
+    cards = load_roster(identity)
+    print("\nPick four %s warriors: one Tank, one Ranged, one Fast and one more, costing %d or %d in all." % (identity.upper(), COST_LEAST, COST_LIMIT))
+    for place, card in enumerate(cards):
+        print("  %d = %-18s cost %d  %s" % (place, card["name"], card["cost"], card["role"]))
+    while True:
+        try:
+            words = input("  Four numbers, or nothing to let CSP choose: ").split()
+        except EOFError:
+            raise SystemExit("\nNo more input. Goodbye.")
+        if not words:
+            return None
+        if all(word.isdigit() and int(word) < len(cards) for word in words):
+            names = [cards[int(word)]["name"] for word in words]
+            try:
+                deck_from_picks(cards, names)
+                return names
+            except ValueError as problem:
+                print("  %s" % problem)
+        else:
+            print("  Numbers from 0 to %d, please." % (len(cards) - 1))
+
+
+PLACES = {("top",): 0, ("bottom",): 1, ("top", "front"): 2, ("bottom", "front"): 3}
+
+
 def ask_human(view):
+    """Returns "hint", or (card, spot) with spot a tile of the side's half."""
     side = view["to_move"]
     deck = view["sides"][side]["deck"]
+    drops = view["sides"][side]["drops"]
     while True:
         print("  Your cards: " + ", ".join("%d = %s" % (card["index"], card["name"]) for card in deck if not card["used"]))
         try:
-            words = input("  Card number and lane (for example: 2 top), or h for a hint: ").split()
+            words = input("  Card and place (2 top, 2 bottom front, or 2 17 for tile 17), t for the tiles, h for a hint: ").split()
         except EOFError:
             raise SystemExit("\nNo more input. Goodbye.")
         if words == ["h"]:
             return "hint"
-        if len(words) == 2 and words[0].isdigit() and words[1] in ("top", "bottom"):
+        if words == ["t"]:
+            print("  Tiles of your half: " + ", ".join("%d = %d,%d" % (spot, tile[0], tile[1]) for spot, tile in enumerate(drops)))
+            continue
+        if len(words) >= 2 and words[0].isdigit():
             card = int(words[0])
-            if any(entry["index"] == card and not entry["used"] for entry in deck):
-                return card, words[1]
+            spot = int(words[1]) if len(words) == 2 and words[1].isdigit() else PLACES.get(tuple(words[1:]))
+            if spot is not None and spot < len(drops) and any(entry["index"] == card and not entry["used"] for entry in deck):
+                return card, spot
         print("  That does not work. Try again.")
 
 
@@ -76,7 +111,9 @@ def main():
     arguments = parser.parse_args()
 
     grid = load_map()
-    session = engine.new_match(arguments.left, arguments.right, arguments.left_brain, arguments.right_brain, arguments.seed)
+    left_deck = ask_deck(arguments.left) if arguments.left_brain == "human" else None
+    right_deck = ask_deck(arguments.right) if arguments.right_brain == "human" else None
+    session = engine.new_match(arguments.left, arguments.right, arguments.left_brain, arguments.right_brain, arguments.seed, left_deck, right_deck)
     view = engine.view(session)
     print("\nKUET ROYALE: %s against %s   (seed %d)\n" % (view["sides"]["left"]["short"], view["sides"]["right"]["short"], view["seed"]))
     show_decks(view)
@@ -89,9 +126,9 @@ def main():
                 choice = ask_human(view)
                 if choice == "hint":
                     hint = engine.hint(session)["hint"]
-                    print("  Alpha-beta would play %s in the %s lane." % (hint["card"], hint["lane"]))
+                    print("  Alpha-beta would play %s in the %s." % (hint["card"], hint["where"]))
                     continue
-                reply = engine.step(session, choice[0], choice[1])
+                reply = engine.step(session, choice[0], spot=choice[1])
             else:
                 reply = engine.step(session)
             view = reply["view"]
@@ -108,9 +145,9 @@ def main():
                                                               view["sides"]["right"]["short"], leg["damage"]["right"]))
         point = leg["turning_point"]
         if point:
-            print("Turning point: card %d. %s played %s %s; %s %s was %d better."
-                  % (point["play"], view["sides"][point["side"]]["short"], point["move"]["card"], point["move"]["lane"],
-                     point["best"]["card"], point["best"]["lane"], point["lost"]))
+            print("Turning point: card %d. %s played %s in the %s; %s in the %s was %d better."
+                  % (point["play"], view["sides"][point["side"]]["short"], point["move"]["card"], point["move"]["where"],
+                     point["best"]["card"], point["best"]["where"], point["lost"]))
         if view["match_over"]:
             break
         view = engine.next_leg(session)["view"]

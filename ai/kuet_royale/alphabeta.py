@@ -6,27 +6,29 @@
 When a branch cannot change the final choice any more, the rest of it is
 skipped. The answer is exactly the one plain minimax would give.
 
-The search always runs to the end of the match. There is no depth limit and
-no evaluation function: utility() reads the score off a finished match.
+In the classic game the search runs to the end of the leg, with no depth limit
+and no evaluation function: utility() reads the score off a finished leg. Power
+mode passes its own rules, which stop at the end of a short window.
 """
 import math
 
-from .game import LEFT, actions, result, terminal, utility
+from . import game
+from .game import LEFT
 
 searched = 0        # positions looked at, counted for the screen
 pruned = 0          # moves skipped because they could not matter
 
 
-def max_value(state, alpha, beta):
+def max_value(state, alpha, beta, rules=game):
     global searched, pruned
     searched += 1
-    if terminal(state):
-        return utility(state), None
+    if rules.terminal(state):
+        return rules.utility(state), None
     v = -math.inf
     best_action = None
-    moves = actions(state)
+    moves = rules.actions(state)
     for place, action in enumerate(moves):
-        value, _ = min_value(result(state, action), alpha, beta)
+        value, _ = min_value(rules.result(state, action), alpha, beta, rules)
         if value > v:
             v = value
             best_action = action
@@ -37,16 +39,16 @@ def max_value(state, alpha, beta):
     return v, best_action
 
 
-def min_value(state, alpha, beta):
+def min_value(state, alpha, beta, rules=game):
     global searched, pruned
     searched += 1
-    if terminal(state):
-        return utility(state), None
+    if rules.terminal(state):
+        return rules.utility(state), None
     v = math.inf
     best_action = None
-    moves = actions(state)
+    moves = rules.actions(state)
     for place, action in enumerate(moves):
-        value, _ = max_value(result(state, action), alpha, beta)
+        value, _ = max_value(rules.result(state, action), alpha, beta, rules)
         if value < v:
             v = value
             best_action = action
@@ -64,7 +66,7 @@ def alpha_beta(state):
     return min_value(state, -math.inf, math.inf)
 
 
-def alpha_beta_decision(state):
+def alpha_beta_decision(state, rules=game):
     """The same search, keeping what it learned about every first move, for the screen.
 
     Returns (best_action, value, table). Each table row is
@@ -80,17 +82,17 @@ def alpha_beta_decision(state):
     alpha, beta = -math.inf, math.inf
     best_action, best = None, None
     table = []
-    for action in actions(state):
-        child = result(state, action)
+    for action in rules.first_moves(state):
+        child = rules.result(state, action)
         before = searched
         if left:
-            value, _ = min_value(child, alpha, beta)
+            value, _ = min_value(child, alpha, beta, rules)
             exact = value > alpha
             if best is None or value > best:
                 best, best_action = value, action
             alpha = max(alpha, value)
         else:
-            value, _ = max_value(child, alpha, beta)
+            value, _ = max_value(child, alpha, beta, rules)
             exact = value < beta
             if best is None or value < best:
                 best, best_action = value, action

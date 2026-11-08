@@ -16,8 +16,10 @@ import os
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
 
 # The four ways a unit can step. They are always tried in this order, so a
-# search gives the same answer every time it is run.
+# search gives the same answer every time it is run. A unit on the right side
+# tries them in the mirror order, so it walks as its mirror image on the left does.
 STEPS = [(0, -1), (1, 0), (0, 1), (-1, 0)]          # up, right, down, left
+MIRROR_STEPS = [(0, -1), (-1, 0), (0, 1), (1, 0)]   # up, left, down, right
 
 SIDES = ("left", "right")
 LANES = ("top", "bottom")
@@ -72,11 +74,11 @@ class Grid:
             raise ValueError("nobody can step onto %s" % (tile,))
         return self.kinds[self.mark(tile)]["cost"]
 
-    def neighbours(self, tile):
+    def neighbours(self, tile, steps=STEPS):
         """The tiles one step away that a unit can stand on."""
         x, y = tile
         found = []
-        for dx, dy in STEPS:
+        for dx, dy in steps:
             other = (x + dx, y + dy)
             if self.passable(other):
                 found.append(other)

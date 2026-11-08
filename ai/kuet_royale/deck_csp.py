@@ -2,7 +2,7 @@
 
     Variables     the four slots of a deck: Tank, Ranged, Fast and Free
     Domains       the cards of the roster that may go in each slot
-    Constraints   no card twice, and the deck costs 13 or 14 energy in total
+    Constraints   no card twice, and the deck costs 13 or 14 in total
 
 The search is the one from the lab: pick a variable, try its values one by
 one, check the constraints, and step back when nothing fits. The two
@@ -96,3 +96,28 @@ def build_deck(cards, seed=None):
     if not backtrack(cards, deck, trace):
         raise ValueError("no deck satisfies the constraints")
     return [deck[slot] for slot in SLOTS], trace
+
+
+def deck_from_picks(cards, names):
+    """A person's own four cards, checked against the same constraints and put in slot order.
+
+    Raises ValueError with a sentence for the screen if the picks break a rule.
+    """
+    by_name = {card["name"]: card for card in cards}
+    if len(names) != len(SLOTS) or len(set(names)) != len(names):
+        raise ValueError("Pick four different warriors.")
+    for name in names:
+        if name not in by_name:
+            raise ValueError("%s is not in this department." % name)
+    left = [by_name[name] for name in names]
+    deck = {}
+    for slot in SLOTS[:-1]:
+        fitting = [card for card in left if fits_slot(card, slot)]
+        if not fitting:
+            raise ValueError("A deck needs a %s." % slot)
+        deck[slot] = fitting[0]
+        left.remove(fitting[0])
+    deck[SLOTS[-1]] = left[0]
+    if not is_valid(deck):
+        raise ValueError("A deck must cost %d or %d." % (COST_LEAST, COST_LIMIT))
+    return [deck[slot] for slot in SLOTS]

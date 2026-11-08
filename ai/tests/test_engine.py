@@ -26,7 +26,7 @@ def play_leg(session):
 class AMatch(unittest.TestCase):
     def test_departments_are_found_from_their_card_files(self):
         found = {entry["id"]: entry for entry in engine.list_departments()}
-        self.assertEqual(list(found), ["cse", "eee", "me", "ce"])
+        self.assertEqual(list(found)[:4], ["cse", "eee", "me", "ce"])
         self.assertEqual(found["cse"]["short"], "CSE")
         self.assertEqual(len(found["me"]["cards"]), 8)
 
@@ -74,8 +74,8 @@ class AMatch(unittest.TestCase):
         session = engine.new_match("cse", "me", "alphabeta", "mcts", seed=5)
         reply = engine.step(session)
         self.assertEqual(reply["thinking"]["algorithm"], "alphabeta")
-        self.assertEqual(reply["thinking"]["plain_minimax"], 270025)
-        self.assertLess(reply["thinking"]["searched"], 270025)
+        self.assertEqual(reply["thinking"]["plain_minimax"], 540049)
+        self.assertLess(reply["thinking"]["searched"], 540049)
         self.assertTrue(reply["thinking"]["choices"][0]["chosen"])
         # Every first move says how many positions alpha-beta looked at below it, and together
         # with the starting position they add up to the whole search.
@@ -83,7 +83,8 @@ class AMatch(unittest.TestCase):
         line = reply["thinking"]["line"]
         self.assertEqual((line[0]["card"], line[0]["lane"]), (reply["move"]["card"], reply["move"]["lane"]))
         self.assertEqual([step["side"] for step in line], ["left", "right", "left"])
-        self.assertEqual(reply["deployed"]["tile"], reply["view"]["sides"]["left"]["starts"][reply["move"]["lane"]])
+        self.assertEqual(reply["deployed"]["tile"], reply["move"]["tile"])
+        self.assertIn(reply["move"]["tile"], reply["view"]["sides"]["left"]["drops"][:4])
         self.assertEqual(len(reply["steps"]), 3)
         self.assertTrue(reply["comments"][0]["text"].startswith("CSE plays "))
         reply = engine.step(session)
@@ -109,12 +110,34 @@ class AMatch(unittest.TestCase):
         with self.assertRaises(ValueError):
             engine.step(session)                                 # it is the person's turn
         hint = engine.hint(session)["hint"]
-        reply = engine.step(session, hint["index"], hint["lane"])
+        reply = engine.step(session, hint["index"], spot=hint["spot"])
         self.assertEqual(reply["move"]["card"], hint["card"])
         self.assertEqual(reply["view"]["to_move"], "right")
         engine.step(session)
         with self.assertRaises(ValueError):
             engine.step(session, hint["index"], "top")           # that card has been played already
+
+    def test_a_person_can_drop_on_any_tile_of_their_half(self):
+        session = engine.new_match("cse", "me", "human", "alphabeta", seed=2)
+        view = engine.view(session)
+        drops = view["sides"]["left"]["drops"]
+        reply = engine.step(session, 0, spot=len(drops) - 1)
+        self.assertEqual(reply["deployed"]["tile"], drops[-1])
+        self.assertEqual(reply["move"]["tile"], drops[-1])
+        with self.assertRaises(ValueError):
+            engine.step(session, 1, spot=len(drops))             # that is not a tile of their half
+        engine.step(session)
+        self.assertTrue(all(entry["lost"] >= 0 for entry in session["legs"][0]["analysis"]))
+
+    def test_a_person_can_bring_their_own_deck(self):
+        picks = ["Compiler", "Optimizer", "Stack Runner", "Debugger"]
+        session = engine.new_match("cse", "me", "human", "alphabeta", seed=2, left_deck=picks)
+        view = engine.view(session)
+        self.assertEqual([card["name"] for card in view["sides"]["left"]["deck"]], picks)
+        self.assertTrue(view["sides"]["left"]["picked"])
+        self.assertFalse(view["sides"]["right"]["picked"])
+        with self.assertRaises(ValueError):
+            engine.new_match("cse", "me", "human", "alphabeta", seed=2, left_deck=["Compiler", "Kernel", "Optimizer", "Debugger"])
 
     def test_a_careless_move_is_named_as_the_turning_point(self):
         session = engine.new_match("cse", "me", "human", "alphabeta", seed=2)
@@ -136,9 +159,9 @@ class AMatch(unittest.TestCase):
 
     def test_plain_minimax_position_counts(self):
         match = engine.match_of(engine.new_match("cse", "me", seed=1))
-        self.assertEqual(engine.positions_without_pruning(State(match)), 270025)
+        self.assertEqual(engine.positions_without_pruning(State(match)), 540049)
         last_card = State(match, used=(15, 7), player=RIGHT, plays=7)        # the right side holds the only card left
-        self.assertEqual(engine.positions_without_pruning(last_card), 3)     # this position and its two lanes
+        self.assertEqual(engine.positions_without_pruning(last_card), 5)     # this position and its four spots
 
 
 class TheBridge(unittest.TestCase):
@@ -157,6 +180,16 @@ class TheBridge(unittest.TestCase):
             self.assertEqual(reply["view"]["play"], 1)
             self.assertEqual(self.ask("view", "--session", session)["view"]["play"], 1)
             self.assertTrue(self.ask("hint", "--session", session)["ok"])
+
+    def test_a_person_plays_a_spot_through_the_bridge(self):
+        with tempfile.TemporaryDirectory() as folder:
+            session = os.path.join(folder, "match.json")
+            reply = self.ask("new", "--left", "cse", "--left-brain", "human", "--right", "me", "--seed", "4", "--session", session,
+                             "--left-deck", "Compiler,Optimizer,Stack Runner,Debugger")
+            self.assertEqual(reply["view"]["sides"]["left"]["deck"][2]["name"], "Stack Runner")
+            self.assertEqual(self.ask("departments")["deck_rules"]["cost_limit"], COST_LIMIT)
+            reply = self.ask("step", "--card", "2", "--spot", "7", "--session", session)
+            self.assertEqual(reply["move"]["spot"], 7)
 
     def test_a_mistake_comes_back_as_a_message_not_a_crash(self):
         with tempfile.TemporaryDirectory() as folder:

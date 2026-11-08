@@ -1,7 +1,7 @@
 class_name CardView
 extends Control
-## One card of a deck: icon, name, cost, the four numbers, and one plain
-## sentence saying what the unit is good for.
+## One card of a deck: icon, name, cost, the four numbers, and the one special
+## the warrior has.
 
 signal picked(index: int)
 
@@ -9,12 +9,14 @@ const AREA := Vector2(208, 112)
 
 var index := -1
 var used := false
+var cost := 0
 
 var _color := Color.WHITE
 var _search_color := Color.WHITE
 var _pickable := false
 var _selected := false
 var _hinted := false
+var _dim := false
 var _hover := false
 var _time := 0.0
 var _played: Label
@@ -30,6 +32,7 @@ func _init() -> void:
 
 func setup(card: Dictionary, side_color: Color) -> void:
 	index = int(card["index"])
+	cost = int(card["cost"])
 	_color = side_color
 	var walks := str(card["walks"])
 	var search: String = UI.WALK_SEARCH[walks]
@@ -47,14 +50,17 @@ func setup(card: Dictionary, side_color: Color) -> void:
 		title_size -= 1
 	add_child(UI.fitted(str(card["name"]), Vector2(60, 5 + (15 - title_size) / 2.0), 114, title_size, UI.INK, 800))
 	var kind := "%s. %s: %s" % [str(card["role"]), str(UI.WALK_NAME[walks]), str(UI.SEARCH_NAME[search]).replace(" search", "")]
-	add_child(UI.fitted(kind, Vector2(72, 26), 130, 11, UI.INK_SOFT))
+	var kind_label := UI.fitted(kind, Vector2(72, 26), 130, 11, UI.INK_SOFT)
+	kind_label.size.y = 18.0                 # centred on the search colour's dot
+	kind_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(kind_label)
 
-	var cost := UI.label(str(int(card["cost"])), 14, UI.INK, 800)
-	cost.position = Vector2(AREA.x - 32, 5)
-	cost.size = Vector2(24, 24)
-	cost.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	cost.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	add_child(cost)
+	var price := UI.label(str(cost), 14, UI.INK, 800)
+	price.position = Vector2(AREA.x - 32, 5)
+	price.size = Vector2(24, 24)
+	price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	price.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(price)
 
 	var numbers := [["❤️", card["health"]], ["⚔️", card["damage"]], ["🎯", card["range"]], ["👟", card["speed"]]]
 	for place in numbers.size():
@@ -64,12 +70,14 @@ func setup(card: Dictionary, side_color: Color) -> void:
 		sign.size = Vector2(20, 20)
 		add_child(sign)
 		var value := UI.label(str(int(numbers[place][1])), 15, UI.INK, 800)
-		value.position = Vector2(x + 21, 46)
+		value.position = Vector2(x + 21, 47)
 		value.size = Vector2(24, 20)
+		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		add_child(value)
 
-	var about := UI.wrapped(str(card["about"]), AREA.x - 22, 11, UI.INK_SOFT)
-	about.position = Vector2(12, 70)
+	var special: Dictionary = card["special"]
+	var about := UI.wrapped("%s. %s" % [str(special["name"]), str(special["words"])], AREA.x - 26, 11, UI.INK_SOFT)
+	about.position = Vector2(14, 70)
 	about.add_theme_constant_override("line_spacing", -2)
 	add_child(about)
 
@@ -110,6 +118,13 @@ func set_selected(now: bool) -> void:
 func set_hinted(now: bool) -> void:
 	_hinted = now
 	queue_redraw()
+
+
+## Greyed out: power mode's cards that cannot be paid for yet.
+func set_dim(now: bool) -> void:
+	if _dim != now:
+		_dim = now
+		queue_redraw()
 
 
 func _notification(what: int) -> void:
@@ -159,7 +174,7 @@ func _draw() -> void:
 	draw_line(Vector2(14, 68), Vector2(AREA.x - 12, 68), UI.PAPER_DIM, 1.5)
 	if Characters.has(_card):
 		Characters.draw(self, Vector2(34, 45), 0.82, _card, _color, 0.0, false)
-	if used:
+	if used or _dim:
 		draw_style_box(UI.box(Color(0.05, 0.13, 0.22, 0.62), 12), area)
 	if _hinted:
 		draw_style_box(UI.box(Color(0, 0, 0, 0), 15, Color(UI.GOLD, 0.6 + 0.4 * sin(_time * 5.0)), 5), area.grow(5.0))

@@ -3,7 +3,7 @@ extends Control
 ## The picture of one decision: the brain's choices drawn as a tree.
 ##
 ## For alpha-beta, every first move is a branch with the final score it can
-## force and how many positions were looked at below it; branches the search
+## reach and how many positions were looked at below it; branches the search
 ## cut short are greyed out, and the line of play it expects is shown underneath.
 ## For MCTS, every first move is a branch with how many random legs went down
 ## it and how many of those it won.
@@ -43,7 +43,10 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 	title.position = Vector2(20, 0)
 	add_child(title)
 	var lead := ""
-	if alpha:
+	var power := thinking.has("note")      # power mode looks at a short window, and says so itself
+	if power:
+		lead = str(thinking["note"]) + (" Grey branches were cut short: the search had already seen that they could not beat the best one." if alpha else "")
+	elif alpha:
 		lead = "It looked at %s positions; plain minimax would need up to %s. Grey branches were cut short: the search had already seen that they could not beat the best one." % [
 			UI.number(float(thinking["searched"])), UI.number(float(thinking["plain_minimax"]))]
 	else:
@@ -56,14 +59,16 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 	var root_label := UI.title("%s to play" % short, 18, UI.WHITE, 6)
 	root_label.position = Vector2(ROOT.position.x, TOP + ROWS_HEIGHT / 2.0 - 16)
 	root_label.size = Vector2(ROOT.size.x, 32)
+	root_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	root_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(root_label)
 
-	var heading := UI.label("Positions looked at below it" if alpha else "Random legs sent down this branch", 13, UI.MUTED)
+	var heading := UI.label("Positions looked at below it" if alpha else ("Random games sent down this branch" if power else "Random legs sent down this branch"), 13, UI.MUTED)
 	heading.position = Vector2(BAR_X, TOP - 26)
 	add_child(heading)
-	add_child(UI.fitted("Final score for %s" % short if alpha else "Legs won", Vector2(BOX_X + 150, TOP - 26), 170, 13, UI.MUTED, 400,
+	add_child(UI.fitted(("Tower swing for %s" if power else "Final score for %s") % short if alpha else ("Games won" if power else "Legs won"), Vector2(BOX_X + 150, TOP - 26), 170, 13, UI.MUTED, 400,
 		HORIZONTAL_ALIGNMENT_RIGHT))
+	var row_text := 12
 	var move_heading := UI.label("First card", 13, UI.MUTED)
 	move_heading.position = Vector2(BOX_X + 12, TOP - 26)
 	add_child(move_heading)
@@ -76,8 +81,7 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 		var y := TOP + place * _row_height
 		var faded: bool = alpha and not bool(row["exact"])
 		var name_color := UI.WHITE if not faded else UI.DIM
-		add_child(UI.fitted("%s, %s lane" % [str(row["card"]), str(UI.LANE_WORD[str(row["lane"])])],
-			Vector2(BOX_X + 12, y + (_row_height - 22) / 2.0), 200, 14, name_color, 800 if bool(row["chosen"]) else 400))
+		_row_label("%s, %s" % [str(row["card"]), UI.lane_words(str(row["where"]))], BOX_X + 12, y, 212, row_text, name_color, 800 if bool(row["chosen"]) else 400)
 		var value := ""
 		if alpha:
 			var score := int(row["score"]) * (1 if side == "left" else -1)
@@ -85,13 +89,13 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 			value = text if bool(row["exact"]) else "at best " + text
 		else:
 			value = "won %d%%" % int(round(float(row["average"]) * 100.0))
-		add_child(UI.fitted(value, Vector2(BOX_X + 212, y + (_row_height - 22) / 2.0), 108, 14, name_color, 800, HORIZONTAL_ALIGNMENT_RIGHT))
+		_row_label(value, BOX_X + 222, y, 98, row_text, name_color, 800, HORIZONTAL_ALIGNMENT_RIGHT)
 		var count := UI.number(float(row["positions"] if alpha else row["visits"]))
 		if faded:
 			count += ", cut short"
-		add_child(UI.fitted(count, Vector2(BAR_X + BAR_W + 12, y + (_row_height - 22) / 2.0), 118, 13, name_color))
+		_row_label(count, BAR_X + BAR_W + 12, y, 118, row_text, name_color)
 
-	if alpha and thinking.has("line"):
+	if alpha and not power:
 		var expects := UI.label("What alpha-beta expects to happen next:", 14, UI.MUTED)
 		expects.position = Vector2(20, TOP + ROWS_HEIGHT + 20)
 		add_child(expects)
@@ -100,8 +104,10 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 		for place in line.size():
 			var move: Dictionary = line[place]
 			var who := str(view["sides"][str(move["side"])]["short"])
-			var chip := UI.fitted("%s: %s, %s" % [who, str(move["card"]), str(UI.LANE_WORD[str(move["lane"])])],
-				Vector2(x + 14, TOP + ROWS_HEIGHT + 52), 280, 14, UI.INK, 800)
+			var chip := UI.fitted("%s: %s, %s" % [who, str(move["card"]), UI.lane_words(str(move["where"]))],
+				Vector2(x + 14, TOP + ROWS_HEIGHT + 46), 280, 14, UI.INK, 800)
+			chip.size.y = 34.0
+			chip.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			chip.add_theme_color_override("font_color", UI.INK)
 			var back := UI.panel(colors[str(move["side"])], 10)
 			back.position = Vector2(x, TOP + ROWS_HEIGHT + 46)
@@ -110,6 +116,15 @@ func setup(thinking: Dictionary, view: Dictionary, colors: Dictionary) -> void:
 			add_child(chip)
 			x += 330.0
 	queue_redraw()
+
+
+## Words in a row, centred on the row's box from top to bottom.
+func _row_label(text: String, x: float, y: float, width: float, text_size: int, color: Color, weight: int = 400,
+		align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> void:
+	var made := UI.fitted(text, Vector2(x, y), width, text_size, color, weight, align)
+	made.size.y = _row_height
+	made.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	add_child(made)
 
 
 func _draw() -> void:
@@ -122,7 +137,8 @@ func _draw() -> void:
 		var y := TOP + place * _row_height
 		var faded: bool = alpha and not bool(row["exact"])
 		var chosen := bool(row["chosen"])
-		var box := Rect2(Vector2(BOX_X, y + 3), Vector2(BOX_W, _row_height - 6))
+		var tall := minf(_row_height - 3.0, 30.0)
+		var box := Rect2(Vector2(BOX_X, y + (_row_height - tall) / 2.0), Vector2(BOX_W, tall))
 		var into := Vector2(BOX_X, box.get_center().y)
 		var bend := Vector2((out.x + into.x) / 2.0, 0)
 		var points := PackedVector2Array([out, Vector2(bend.x, out.y), Vector2(bend.x, into.y), into])
@@ -131,7 +147,8 @@ func _draw() -> void:
 		var fill := Color(UI.GOLD, 0.25) if chosen else (Color(1, 1, 1, 0.04) if faded else Color(1, 1, 1, 0.10))
 		draw_style_box(UI.box(fill, 10, UI.GOLD if chosen else Color(1, 1, 1, 0.15), 2 if chosen else 1), box)
 		var amount := float(row["positions"] if alpha else row["visits"])
-		var bar := Rect2(Vector2(BAR_X, y + _row_height / 2.0 - 7), Vector2(BAR_W, 14))
+		var thick := minf(14.0, _row_height - 7.0)
+		var bar := Rect2(Vector2(BAR_X, y + (_row_height - thick) / 2.0), Vector2(BAR_W, thick))
 		draw_style_box(UI.box(Color(0, 0, 0, 0.35), 7), bar)
 		var part := clampf(amount / _most, 0.0, 1.0)
 		if part > 0.0:

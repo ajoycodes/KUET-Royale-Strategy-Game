@@ -5,8 +5,9 @@
 import unittest
 
 from kuet_royale.cards import COST_LEAST, COST_LIMIT, ROLES, WALKS, check_roster, load_roster
+from kuet_royale.engine import list_departments
 
-DEPARTMENTS = ("ce", "cse", "eee", "me")
+DEPARTMENTS = tuple(entry["id"] for entry in list_departments())
 
 
 class TheRosters(unittest.TestCase):
@@ -66,6 +67,16 @@ class ABrokenRoster(unittest.TestCase):
 
     def test_a_short_roster_is_reported(self):
         self.assertIn("a roster has 8 cards, found 7", check_roster(load_roster("me")[:7]))
+
+    def test_a_card_has_only_one_special(self):
+        cards = load_roster("cse")
+        drone = [card for card in cards if card["walks"] == "hover"][0]
+        drone["splash"] = True
+        self.assertTrue(any("one special" in problem for problem in check_roster(cards)))
+        cards = load_roster("cse")
+        bomber = [card for card in cards if card["splash"]][0]
+        bomber["quirk"] = "armour"
+        self.assertTrue(any("one special" in problem for problem in check_roster(cards)))
 
 
 if __name__ == "__main__":

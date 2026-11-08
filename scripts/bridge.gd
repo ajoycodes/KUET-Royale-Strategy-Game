@@ -2,11 +2,11 @@ extends Node
 ## The link to the Python side. Every question is answered by running
 ## ai/bridge.py once, on a background thread so the screen keeps moving.
 ##
-##     var reply: Dictionary = await Bridge.ask(["step", "--card", "3", "--lane", "top"])
+##     var reply: Dictionary = await Bridge.ask(["step", "--card", "3", "--spot", "7"])
 
 signal answered(id: int, reply: Dictionary)
 
-const PATIENCE_MSEC := 15000         # a call normally answers in well under a second
+const PATIENCE_MSEC := 15000         # a call normally answers within two seconds
 
 var python := ""
 var problem := ""
@@ -55,7 +55,7 @@ func _session_path(number: int) -> String:
 func ask(arguments: Array) -> Dictionary:
 	if problem != "":
 		return {"ok": false, "error": problem}
-	if str(arguments[0]) == "new":
+	if str(arguments[0]) == "new" or str(arguments[0]) == "power_new":
 		_matches += 1
 		_session = _session_path(_matches)
 	var id := _next_id

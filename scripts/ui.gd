@@ -55,12 +55,10 @@ const SEARCH_NAME := {
 const WALK_SEARCH := {"careful": "astar", "reckless": "best_first", "hover": "breadth_first"}
 const WALK_NAME := {"careful": "Careful", "reckless": "Reckless", "hover": "Hover"}
 
-# The arena stands upright on screen: the engine's left side is at the top, and
-# what the engine calls the top lane is the lane on the left.
-const LANE_WORD := {"top": "left", "bottom": "right"}
 const SEAT_WORD := {"left": "Top", "right": "Bottom"}
 
 static var _fonts := {}
+static var _art := {}
 
 
 static func font(weight: int = 400) -> Font:
@@ -95,6 +93,42 @@ static func title(text: String, size: int, color: Color = WHITE, edge: int = 8) 
 	var made := label(text, size, color, 800)
 	made.add_theme_color_override("font_outline_color", Color("0d2238"))
 	made.add_theme_constant_override("outline_size", edge)
+	return made
+
+
+## A picture from the art folder. The folder is kept out of Godot's import step, so that a fresh copy of the project runs as it is.
+static func art(file: String) -> Texture2D:
+	if not _art.has(file):
+		var made: Texture2D = null
+		var bytes := FileAccess.get_file_as_bytes("res://art/" + file)
+		if not bytes.is_empty():
+			var image := Image.new()
+			if image.load_png_from_buffer(bytes) == OK:
+				image.generate_mipmaps()
+				made = ImageTexture.create_from_image(image)
+		_art[file] = made
+	return _art[file]
+
+
+## The game's name in carved metal, centred on a point. The letters sit in the exact middle of the picture.
+## Without the picture, plain gold letters.
+static func logo(file: String, middle: Vector2, area: Vector2, plain_size: int) -> Control:
+	var texture := art(file)
+	if texture == null:
+		var plain := title("KUET Royale", plain_size, GOLD, plain_size / 4)
+		plain.size = area
+		plain.position = middle - area / 2.0
+		plain.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		plain.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		return plain
+	var made := TextureRect.new()
+	made.texture = texture
+	made.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	made.stretch_mode = TextureRect.STRETCH_SCALE
+	made.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	made.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	made.size = area
+	made.position = middle - area / 2.0
 	return made
 
 
