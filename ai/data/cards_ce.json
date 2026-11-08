@@ -11,7 +11,7 @@
     {"name": "Crane Operator",    "icon": "🪝", "cost": 4, "health": 6,  "damage": 3, "range": 2, "speed": 1, "walks": "careful",  "splash": false, "role": "Ranged", "quirk": "anti_air", "about": "Short-range shooter with a heavy punch."},
     {"name": "Seismic Crew",      "icon": "🌋", "cost": 5, "health": 6,  "damage": 2, "range": 3, "speed": 1, "walks": "careful",  "splash": true,  "role": "Ranged", "about": "Its tremor also hurts everyone next to the target."},
     {"name": "Surveyor",          "icon": "📐", "cost": 2, "health": 5,  "damage": 2, "range": 1, "speed": 2, "walks": "careful",  "splash": false, "role": "Fast",   "quirk": "finisher", "about": "Quick, sturdy for its price, and sticks to the road."},
-    {"name": "Construction Crew", "icon": "🧱", "cost": 2, "health": 3,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "quirk": "blast", "about": "Very fast, very fragile. Cuts straight through mud."},
+    {"name": "Construction Crew", "icon": "🧱", "cost": 2, "health": 4,  "damage": 2, "range": 1, "speed": 3, "walks": "reckless", "splash": false, "role": "Fast",   "quirk": "blast", "about": "Very fast, very fragile. Cuts straight through mud."},
     {"name": "Survey Drone",      "icon": "🛰️", "cost": 3, "health": 5,  "damage": 2, "range": 2, "speed": 2, "walks": "hover",    "splash": false, "role": "Fast",   "about": "Floats over grass and mud. Shoots from two tiles away."}
   ]
 }
