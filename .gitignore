@@ -6,3 +6,12 @@ ai/match.json
 
 # Recorded demo video, kept out of the repository
 demo/*.mp4
+
+# The promo video project: packages, footage and renders
+promo/node_modules/
+promo/public/
+promo/out/
+promo/vibe/public/
+promo/vibe/tools/.ground.npy
+promo/vibe/tools/__pycache__/
+promo/vibe/work/

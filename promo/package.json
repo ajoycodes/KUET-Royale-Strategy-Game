@@ -1,0 +1,17 @@
+{
+  "name": "kuet-royale-promo",
+  "private": true,
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render src/index.ts Promo ../demo/KUET-Royale-promo.mp4 --concurrency=4 --timeout=180000 --audio-bitrate=320k"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.539",
+    "@remotion/google-fonts": "^4.0.539",
+    "@types/react": "^19.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.539",
+    "typescript": "^7.0.2"
+  }
+}

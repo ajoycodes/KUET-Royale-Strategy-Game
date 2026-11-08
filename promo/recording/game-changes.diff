@@ -1,0 +1,168 @@
+--- scripts/main.gd	2026-10-31 04:40:42
++++ scripts/main.gd	2026-11-01 01:53:30
+@@ -58,6 +58,23 @@
+ 	if arguments.has("--gallery"):
+ 		add_child(GalleryScreen.new())
+ 		return
++	if arguments.has("--promo-figures"):
++		var figures := PromoFigures.new()
++		figures.ground = Color.WHITE if arguments.has("--white") else Color.BLACK
++		add_child(figures)
++		return
++	if arguments.has("--promo-person"):
++		seed(4242)
++		_config = {"left": "me", "right": "cse", "left_brain": "alphabeta", "right_brain": "human", "auto": true, "robot": true}
++		var at_seed := arguments.find("--seed")
++		if at_seed >= 0:
++			_config["seed"] = int(arguments[at_seed + 1])
++		_show_picker("right")
++		_promo_picks()
++		return
++	if arguments.has("--promo-power"):
++		seed(4242)
++		demo = {"left": "ce", "right": "eee", "left_brain": "mcts", "right_brain": "human", "auto": true, "robot": true, "mode": "power"}
+ 	if arguments.has("--uitest"):
+ 		add_child(UiTest.new())
+ 	if not demo.is_empty():
+@@ -169,3 +186,22 @@
+ 			_route(next)
+ 		_:
+ 			_show_menu()
++
++
++## Recording only: tap four warriors on the picker at a person's pace.
++func _promo_picks() -> void:
++	await get_tree().create_timer(0.9).timeout
++	var picker: PickerScreen = _picker
++	for name in ["Compiler", "Logic Bomber", "Stack Runner", "Cloud Drone"]:
++		for number in (picker.info["cards"] as Array).size():
++			var card: Dictionary = picker.info["cards"][number]
++			if str(card["name"]) == name:
++				await Touch.go(picker._cards[number].get_global_rect().get_center(), 0.42)
++				await Touch.tap()
++				picker._on_card(card)
++				await get_tree().create_timer(0.26).timeout
++	await Touch.go(picker._go.get_global_rect().get_center(), 0.5)
++	await Touch.tap()
++	await get_tree().create_timer(0.3).timeout
++	Touch.away()
++	picker._go.pressed.emit()
+--- scripts/match.gd	2026-11-01 02:54:27
++++ scripts/match.gd	2026-11-01 02:54:27
+@@ -598,12 +598,18 @@
+ 
+ ## For demos without a mouse: play whatever alpha-beta suggests.
+ func _robot_plays(side: String) -> void:
+-	await _wait(0.6)
++	await _wait(0.3)
+ 	var reply: Dictionary = await Bridge.ask(["hint"])
+ 	if not _alive or _picking_side != side or not bool(reply.get("ok", false)):
+ 		return
++	await Touch.go(_hands[side][int(reply["hint"]["index"])].get_global_rect().get_center(), 0.5)
++	await Touch.tap()
+ 	_on_card_picked(int(reply["hint"]["index"]), side)
+-	await _wait(0.6)
++	await _wait(0.45)
++	var tile: Array = _view["sides"][side]["drops"][int(reply["hint"]["spot"])]
++	await Touch.go(_board.get_global_transform() * _board.tile_centre(tile), 0.6)
++	await Touch.tap()
++	Touch.away()
+ 	if _alive and _picking_side == side:
+ 		_on_tile_chosen(int(reply["hint"]["spot"]))
+ 
+--- scripts/power.gd	2026-10-31 15:33:38
++++ scripts/power.gd	2026-11-01 14:03:41
+@@ -143,7 +143,7 @@
+ 
+ 	var step: Dictionary = reply["step"]
+ 	for search in step["searches"]:
+-		_board.route_line(search["route"], UI.SEARCH_COLOR[str(search["route_search"])], 0.9 / _speed)
++		pass        # recording only: no route lines, so the fight reads cleanly
+ 	# A walk must be over before the next beat starts.
+ 	var farthest := 2
+ 	for move in step["moves"]:
+@@ -229,19 +229,47 @@
+ 	_board.stop_tile_pick()
+ 
+ 
+-## For demos without a mouse: drop whatever can be paid for, on a random tile of its half.
++## Recording only: a person taps a card and a tile, with a soft dot showing where.
++var _robot_busy := false
++
++
+ func _robot_drops() -> void:
++	if _robot_busy:
++		return
+ 	for side in ["left", "right"]:
+ 		if not _is_person(side) or not _queued[side].is_empty():
+ 			continue
+ 		var coins: int = int(_view["sides"][side]["coins"]) - _spending(side)
++		var can: Array = []
+ 		for card in _hands[side]:
+ 			if card.cost <= coins and not _on_its_way(side, card.index):
+-				_on_card_picked(card.index, side)
+-				_on_tile_chosen(randi_range(0, (_view["sides"][side]["drops"] as Array).size() - 1))
+-				return
++				can.append(card)
++		if can.is_empty() or coins < 3:
++			continue
++		_robot_busy = true
++		_promo_drop(can[randi() % can.size()], side)
++		return
++
+ 
++func _promo_drop(card: Variant, side: String) -> void:
++	var index: int = card.index
++	await Touch.go(card.get_global_rect().get_center(), 0.34)
++	await Touch.tap()
++	if not _alive:
++		return
++	_on_card_picked(index, side)
++	await get_tree().create_timer(0.24).timeout
++	var drops: Array = _view["sides"][side]["drops"]
++	var spot: int = [2, 3, 0, 1][randi() % 4] if randf() < 0.7 else randi() % drops.size()
++	await Touch.go(_board.get_global_transform() * _board.tile_centre(drops[spot]), 0.38)
++	await Touch.tap()
++	if _alive and _picking_side == side:
++		_on_tile_chosen(spot)
++	Touch.away()
++	await get_tree().create_timer(0.3).timeout
++	_robot_busy = false
+ 
++
+ # ---------------------------------------------------------------- showing it
+ 
+ func _refresh_power() -> void:
+--- project.godot	2026-10-10 03:47:12
++++ project.godot	2026-11-01 02:10:33
+@@ -12,18 +12,21 @@
+ 
+ config/name="KUET Royale"
+ config/description="Two KUET departments fight across a campus battlefield. Alpha-beta search and Monte Carlo Tree Search pick the cards."
+-run/main_scene="res://main.tscn"
++run/main_scene="res://promo_root.tscn"
+ config/features=PackedStringArray("4.7", "GL Compatibility")
+ 
+ [autoload]
+ 
+ Sfx="*res://scripts/sfx.gd"
+ Bridge="*res://scripts/bridge.gd"
++Touch="*res://scripts/promo_touch.gd"
+ 
+ [display]
+ 
+ window/size/viewport_width=1280
+ window/size/viewport_height=720
++window/size/window_width_override=320
++window/size/window_height_override=180
+ window/stretch/mode="canvas_items"
+ 
+ [rendering]
+@@ -31,3 +34,7 @@
+ renderer/rendering_method="gl_compatibility"
+ renderer/rendering_method.mobile="gl_compatibility"
+ environment/defaults/default_clear_color=Color(0.07, 0.19, 0.32, 1)
++
++[editor]
++
++movie_writer/mjpeg_quality=0.95
