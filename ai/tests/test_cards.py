@@ -4,9 +4,10 @@
 """
 import unittest
 
-from kuet_royale.cards import COST_LIMIT, ROLES, WALKS, check_roster, load_roster
+from kuet_royale.cards import COST_LEAST, COST_LIMIT, ROLES, WALKS, check_roster, load_roster
+from kuet_royale.engine import list_departments
 
-DEPARTMENTS = ("cse", "me")
+DEPARTMENTS = tuple(entry["id"] for entry in list_departments())
 
 
 class TheRosters(unittest.TestCase):
@@ -30,8 +31,8 @@ class TheRosters(unittest.TestCase):
         for department in DEPARTMENTS:
             self.assertEqual(sum(card["splash"] for card in load_roster(department)), 1, department)
 
-    def test_a_legal_deck_exists(self):
-        # Cheapest Tank + cheapest Ranged + cheapest Fast + cheapest card left over.
+    def test_the_cheapest_deck_is_too_cheap(self):
+        # Otherwise the lower cost limit would never force a choice.
         for department in DEPARTMENTS:
             cards = load_roster(department)
             deck = []
@@ -39,7 +40,7 @@ class TheRosters(unittest.TestCase):
                 deck.append(min((card for card in cards if card["role"] == role), key=lambda card: card["cost"]))
             rest = [card for card in cards if card not in deck]
             deck.append(min(rest, key=lambda card: card["cost"]))
-            self.assertLessEqual(sum(card["cost"] for card in deck), COST_LIMIT, department)
+            self.assertLess(sum(card["cost"] for card in deck), COST_LEAST, department)
 
     def test_the_dearest_deck_breaks_the_limit(self):
         # Otherwise the cost limit would never force a choice.
@@ -56,8 +57,26 @@ class ABrokenRoster(unittest.TestCase):
         self.assertEqual(len(problems), 3)
         self.assertTrue(all(problem.startswith("Compiler") for problem in problems))
 
+    def test_every_card_says_in_plain_words_what_it_does(self):
+        for department in DEPARTMENTS:
+            for card in load_roster(department):
+                self.assertTrue(card["about"].endswith("."), card["name"])
+        cards = load_roster("me")
+        cards[1] = dict(cards[1], about="")
+        self.assertEqual(len(check_roster(cards)), 1)
+
     def test_a_short_roster_is_reported(self):
         self.assertIn("a roster has 8 cards, found 7", check_roster(load_roster("me")[:7]))
+
+    def test_a_card_has_only_one_special(self):
+        cards = load_roster("cse")
+        drone = [card for card in cards if card["walks"] == "hover"][0]
+        drone["splash"] = True
+        self.assertTrue(any("one special" in problem for problem in check_roster(cards)))
+        cards = load_roster("cse")
+        bomber = [card for card in cards if card["splash"]][0]
+        bomber["quirk"] = "armour"
+        self.assertTrue(any("one special" in problem for problem in check_roster(cards)))
 
 
 if __name__ == "__main__":
