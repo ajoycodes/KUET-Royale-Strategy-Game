@@ -1,0 +1,106 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=1.45cm,top=1.3cm,bottom=1.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage[table]{xcolor}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+
+\definecolor{navy}{HTML}{12314F}
+\definecolor{ucs}{HTML}{2F6BFF}
+\definecolor{astar}{HTML}{C9A100}
+\definecolor{greedy}{HTML}{E8691F}
+\definecolor{bfs}{HTML}{D83CB4}
+\definecolor{soft}{HTML}{5A6472}
+
+\pagestyle{empty}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\renewcommand{\arraystretch}{1.18}
+
+% One algorithm: name, where it lives in the code, taught in
+\newcommand{\algo}[3]{\vspace{5pt}{\color{navy}\large\bfseries #1}\hfill{\small\color{soft}\texttt{#2}\quad #3}\par\vspace{1pt}}
+\newcommand{\row}[1]{\textbf{#1}\enspace}
+\newcommand{\swatch}[1]{\textcolor{#1}{\rule{7pt}{7pt}}}
+
+\begin{document}
+
+{\color{navy}\LARGE\bfseries KUET Royale: which algorithm, where, why}\\[2pt]
+{\color{soft}CSE 3210 Artificial Intelligence Lab. Eight course algorithms, each with its own job. All of it is plain Python (standard library only) in \texttt{ai/kuet\_royale/}.}
+
+\vspace{6pt}
+\textbf{The game in short.} Two departments (any of CSE, EEE, ME, CE) fight on a $13\times7$ grid with a river, two bridges, roads (cost 1), grass (cost 2) and mud (cost 4). Each side has a 4-card deck. Sides take turns playing one card into the top or bottom lane; after each card the units fight for 3 battle steps (up to 15 more after the last card). A leg ends when all 8 cards are played or a tower falls; its score is left tower health minus right tower health. A match is two legs, each side playing first once because playing second is an edge; the side that did more damage to the enemy tower over both legs wins. \emph{Once the decks are dealt, nothing is random, nothing is hidden and the turns alternate}, so the course's searches apply exactly as taught.
+
+\vspace{4pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.75cm}>{\raggedright\arraybackslash}p{6.05cm}>{\raggedright\arraybackslash}p{4.15cm}>{\raggedright\arraybackslash}p{2.75cm}@{}}
+\toprule
+\textbf{Algorithm} & \textbf{Its job in the game} & \textbf{Code} & \textbf{Taught in}\\
+\midrule
+CSP backtracking & builds each deck under cost and role limits & \texttt{deck\_csp.py} \texttt{build\_deck} & Lab 06\\
+\swatch{ucs}\ Uniform-cost search & which enemy is cheapest to reach (non-hover units) & \texttt{search.py} \texttt{uniform\_cost} & course\\
+\swatch{astar}\ A* search & route of a \emph{careful} unit & \texttt{search.py} \texttt{a\_star} & Lab 03\\
+\swatch{greedy}\ Greedy best-first & route of a \emph{reckless} unit & \texttt{search.py} \texttt{best\_first} & Lab 03\\
+\swatch{bfs}\ Breadth-first search & target and route of a \emph{hover} unit; area of a splash & \texttt{search.py} \texttt{breadth\_first}, \texttt{within} & course\\
+Fuzzy inference & which enemy to hit when several are in range & \texttt{fuzzy.py} \texttt{TARGET} & Lab 05\\
+Alpha-beta search & brain 1; also the Hint button and move review & \texttt{alphabeta.py} & Lab 04 + theory\\
+MCTS (UCB1) & brain 2 (and the Easy level) & \texttt{mcts.py} & Lab 08\\
+\bottomrule
+\end{tabular}
+
+\vspace{5pt}
+\textbf{One turn, start to finish.}
+(1)~At the start of the match \textbf{CSP} builds both decks.
+(2)~The side to play picks a card and a lane: \textbf{alpha-beta}, \textbf{MCTS}, or you (Hint asks alpha-beta).
+(3)~Each battle step, every unit does one thing. If an enemy unit or the enemy tower is in range it attacks, and if several targets are in range \textbf{fuzzy} rules pick which; a splash also hits every other enemy unit that \textbf{breadth-first} finds within one step of the target. Otherwise it picks a target with \textbf{uniform-cost} (hover units: \textbf{breadth-first}), then walks towards it on the route from \textbf{A*}, \textbf{best-first} or \textbf{breadth-first}, according to the card's walking style. Then the towers fire at units where they stood when the step began, and all damage lands at once.
+
+% ------------------------------------------------------------------
+\algo{1. CSP backtracking with MRV and LCV}{deck\_csp.py}{Lab 06}
+\row{What.} Variables: the 4 deck slots \emph{Tank, Ranged, Fast, Free}. Domains: the department's 8 cards that fit the slot (any card fits Free). Constraints: no card twice, and the total cost is 13 or 14. Backtracking assigns a slot, checks the constraints and undoes the choice when nothing fits. \emph{MRV} fills the slot with the fewest legal cards first; \emph{LCV} tries first the card that leaves the other slots the most choices.\\
+\row{Why.} Choosing a deck under limits is a textbook CSP. Cost is a hand-set strength rating (nothing in play spends it), so the limit stops a deck taking all the strongest cards. The match seed shuffles the order the cards are read in, so equally good decks vary between matches. Honest note: with these 8-card rosters MRV always ends up with the order Tank, Ranged, Fast, Free, and LCV only saves the odd undo (ME, CE).\\
+\row{Example.} CSE as the left side of match seed 4: Compiler, Logic Bomber, Debugger, Stack Runner, found in 4 tries with 0 undone. The intro sheet shows these numbers.
+
+\algo{\swatch{ucs}\ 2. Uniform-cost search (UCS)}{search.py uniform\_cost, routes.py nearest}{course}
+\row{What.} Expands tiles in order of path cost $g$ (a priority queue on $g$). With many goal tiles (every enemy unit, and the three tiles next to the enemy tower), the first goal taken off the queue is the cheapest one to reach. The game runs it once per start tile and remembers the order, so \texttt{routes.py nearest} just takes the goal reached first.\\
+\row{Where.} Every battle step, for a non-hover unit with nobody in range: it decides \emph{which} enemy to walk to.\\
+\row{Why.} There are several goals and the tiles cost different amounts. Breadth-first would count mud as cheap as road; A* and best-first need a single goal. Shown on screen as blue tiles.
+
+\algo{\swatch{astar}\ 3. A* search}{search.py a\_star}{Lab 03}
+\row{What.} Expands the tile with the smallest $f = g + h$, where $h$ is the Manhattan distance to the goal. Each step costs at least 1 and changes $h$ by at most 1, so $h$ is consistent (it never overestimates) and the route found is the cheapest.\\
+\row{Where.} The route of every \emph{careful} unit (most cards, such as Compiler, Algorithmist and Heavy Machine), once UCS has chosen its target.\\
+\row{Why.} We want the cheapest route, and A* finds it while exploring fewer tiles than UCS, because it is aimed at one goal. Shown as yellow tiles.
+
+\algo{\swatch{greedy}\ 4. Greedy best-first search}{search.py best\_first}{Lab 03}
+\row{What.} Expands the tile that \emph{looks} closest, by $h$ alone, and never looks at what the path has cost.\\
+\row{Where.} The route of \emph{reckless} units: Stack Runner, Relay Runner, Gear Runner, Mini-Bot, Road Roller and Construction Crew.\\
+\row{Why.} It gives units a personality: they head straight at the goal and may charge through mud, and it lets the screen show greedy against optimal. Example (engine coordinates): from the right side's top-lane start $(11,1)$ to $(1,3)$ next to the left tower, best-first's route costs \textbf{34} where A*'s costs \textbf{12}; in play this shows as ``Mini-Bot takes the greedy route: it costs 34 where A* would pay 12.'' On screen the greedy route is orange, A*'s route is drawn in yellow beside it, and the strip says ``best-first heads straight for the goal, cost $X$. A* (yellow) would go round for $Y$.''
+
+\algo{\swatch{bfs}\ 5. Breadth-first search (BFS)}{search.py breadth\_first, within}{course}
+\row{What.} Spreads out one step at a time (a FIFO queue), so it finds the route with the fewest steps.\\
+\row{Where.} (a) \emph{Hover} units (Cloud Drone, Electron, Quadcopter, Survey Drone) use it both to choose a target and to route to it: road, grass and mud cost them the same (the river still blocks them; they cross on bridges), so every step costs 1 and fewest steps is also cheapest. (b) \texttt{within(tile, 1)}, a breadth-first search with a step limit, gives the splash area of Logic Bomber, Oscillator, Steel Rain Cannon and Seismic Crew.\\
+\row{Why.} When every step costs the same, BFS is optimal and simplest; a step-limited BFS is exactly ``every tile within $n$ steps''. A hover unit's search shows as pink tiles; a splash makes its centre tile glow pink.
+
+\algo{6. Fuzzy inference (Mamdani)}{fuzzy.py TARGET, priority}{Lab 05}
+\row{What.} Written by hand in the lab's four steps: fuzzify, evaluate rules (OR = max, AND = min), aggregate (cap each output term at its rule's strength, then take the max), and defuzzify by the centroid over the samples $5,15,\dots,95$. Inputs: \emph{distance} in tiles (near/medium/far) and \emph{health} in percent (low/medium/full). Output: \emph{priority} 0--100.\\[1pt]
+\hspace*{1.2em}{\small\texttt{IF distance is near\ \ \ OR health is low\ \ \ \ THEN priority is high}}\\
+\hspace*{1.2em}{\small\texttt{IF distance is medium OR health is medium THEN priority is medium}}\\
+\hspace*{1.2em}{\small\texttt{IF distance is far\ \ \ \ OR health is full\ \ \ THEN priority is low}}\\[1pt]
+\row{Where.} Only when a unit has \emph{two or more} targets in range (enemy units or the enemy tower): it hits the one with the highest priority; with one target in range it simply hits it.\\
+\row{Why.} ``Close and badly hurt'' is a vague idea, and fuzzy rules turn it into a smooth score that can be explained rule by rule. The on-screen panel shows each rule's strength.\\
+\row{Example.} An enemy on the same tile at full health scores 50.0; one 1 tile away at full health scores 41.9; one on the same tile at 50\% health scores 69.4, so the wounded enemy is hit.
+
+\algo{7. Alpha-beta search (minimax with pruning)}{alphabeta.py, game.py}{Lab 04 + theory}
+\row{What.} The Lab 04 minimax program (\texttt{actions}, \texttt{result}, \texttt{terminal}, \texttt{utility}, \texttt{max\_value}, \texttt{min\_value}) plus $\alpha$ and $\beta$. A move is (unused card, lane); the left side is MAX and the right side is MIN; utility = left tower $-$ right tower. A branch that can no longer change the choice is skipped, and the answer is exactly plain minimax's. It \emph{searches to the end of the leg}, with no depth limit and no evaluation function.\\
+\row{Where.} The \emph{Alpha-beta} brain; the \emph{Hint} button; and the review of every move (``turning point'' = the card that lost the most against perfect play).\\
+\row{Why.} The game is deterministic, two-player, zero-sum, fully visible and turn-based, which is exactly what minimax assumes. A leg has at most $8\cdot8\cdot6\cdot6\cdot4\cdot4\cdot2\cdot2 = 147{,}456$ endings, so searching to the end is possible, and pruning makes it fast.\\
+\row{Example.} First card of CSE against ME (seed 4): 13,821 positions looked at and 5,874 moves skipped, where plain minimax would need up to 270,025; about 0.3\,s.
+
+\algo{8. Monte Carlo Tree Search (UCB1)}{mcts.py}{Lab 08}
+\row{What.} The four steps from the slides, repeated: \emph{selection} (walk down by the highest $\mathrm{UCB1}=\tfrac{t_i}{n_i}+C\sqrt{\tfrac{\ln N}{n_i}}$, $C=2$; unvisited children first), \emph{expansion} (the root at the start, then any visited unfinished leaf, gets a child for every action, and the first new child is simulated), \emph{simulation} (random moves, card and lane, for both sides until the leg ends) and \emph{backpropagation} (add the result up the path).\\
+\row{Our choices} (the slides leave them open): 1,500 repeats (Easy level: 100); a finished leg is worth 1 for a win, 0.5 for a draw and 0 for a loss to the side searching; the move played is the child with the best average $t/n$; a finished leg reached again is simply re-scored.\\
+\row{Where.} The \emph{MCTS} brain and the \emph{Easy} brain.\\
+\row{Why.} It is the second brain taught in the course and the opposite of alpha-beta: it samples instead of proving. Nothing models the opponent (the lab taught none), so it gambles; alpha-beta beats it in about 85\% of matches (\texttt{balance\_check.py}: 88\% as the left side, 84\% as the right, 80 matches each), which is the point of the show.
+
+\vspace{5pt}
+{\color{soft}\small\textbf{Not used:} no evaluation function, no depth limit, no chance in the rules (the only randomness: the match seed shuffles the order the deck CSP reads the cards, and MCTS's rollouts), no hidden information, no AI libraries. Godot only draws the board: every rule and every algorithm runs in Python, and Godot asks \texttt{ai/bridge.py} once per decision.}
+
+\end{document}
