@@ -1,6 +1,22 @@
 # KUET Royale: Department Wars
 
 <p align="center">
+  <a href="https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest/download/KUET-Royale-Setup.exe">
+    <img src="https://img.shields.io/badge/Download_for_Windows-KUET--Royale--Setup.exe-123052?style=for-the-badge&logo=windows" alt="Download KUET Royale for Windows">
+  </a>
+  <a href="https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest">
+    <img src="https://img.shields.io/badge/GitHub_Release-Latest-e8af30?style=for-the-badge&logo=github" alt="Latest GitHub Release">
+  </a>
+</p>
+
+<p align="center">
+  <b><a href="https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest/download/KUET-Royale-Setup.exe">Direct Download (Windows 64-bit Installer, ~121 MB)</a></b> &middot;
+  <a href="https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest">Release Notes &amp; SHA-256 Checksums</a>
+  <br>
+  <sub>Standalone installer bundling Godot 4.7.2 &amp; Python 3.14 (no extra setup required; if Windows SmartScreen warns on the unsigned installer, click <b>More info &rarr; Run anyway</b>).</sub>
+</p>
+
+<p align="center">
   <img src="media/film-preview.webp" alt="Moments from the opening film: two warriors clash, Power mode starts in a storm, a castle falls and the KUET Royale title lands" width="100%">
 </p>
 
@@ -33,7 +49,7 @@ A small strategy game where two KUET departments fight across a campus battlefie
 
 | | |
 |---|---|
-| **Status** | Built and playable: the Godot game with 32 warrior figures, the classic game in the terminal, a balance checker, automated tests and a scripted player that clicks through every screen. See [what is and is not checked](#15-what-is-and-is-not-checked). |
+| **Status** | Built, playable, and packaged as a [standalone Windows installer](https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest): the Godot game with 32 warrior figures, the classic game in the terminal, a balance checker, 163 unit tests, and a scripted player that clicks through every screen. See [what is and is not checked](#15-what-is-and-is-not-checked). |
 | **Must have** | AI against AI, fun to watch. Built. |
 | **Bonus** | A person against an AI. Built. |
 | **Departments** | CSE, EEE, ME and CE |
@@ -519,7 +535,7 @@ Say these openly if asked:
 | Fuzzy or search libraries (scikit-fuzzy, networkx) | The course teaches these by hand; the code must show the method |
 | Machine learning | Not in the course |
 
-**Machines:** developed on macOS with Python 3.9.6 and 3.13.9. It has not been run on Windows or Linux. The bridge looks for `python3`, then `python`; set the `KUET_ROYALE_PYTHON` environment variable to point it at a particular one.
+**Machines:** developed on macOS with Python 3.9.6 and 3.13.9, and verified on Windows 10/11 (64-bit) with Godot 4.7.2 and Python 3.14 (both from source and via the standalone Windows installer). It has not been tested on Linux. The bridge looks for `python`, `py`, or `python3`; set the `KUET_ROYALE_PYTHON` environment variable to point it at a particular interpreter (on Windows terminals, also set `PYTHONUTF8=1` when calling `ai/bridge.py` directly or running the bridge unit tests).
 
 ---
 
@@ -633,8 +649,11 @@ KUET-Royale/
 
 ## 11. Running it
 
-### The game
+### Windows installer (no setup)
 
+Download and run [**`KUET-Royale-Setup.exe`**](https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest/download/KUET-Royale-Setup.exe) from the [latest GitHub release](https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest). It bundles Godot 4.7.2 and Python 3.14, installs per-user into `%LOCALAPPDATA%\KUET Royale` (no Administrator prompt needed), and includes an uninstaller.
+
+### From source (Godot + Python)
 Once, after downloading the project:
 
 ```bash
@@ -844,12 +863,13 @@ MCTS against a side that plays at random: MCTS wins 100% from the left and 96% f
 
 **Checked by running the game itself:** complete matches in AI against AI mode and in the self-playing "person" mode ran from the menu to the final screen with no script errors, and frames of the menu, the intro, a battle, a Power match, the result screens, Meet the warriors, the troop picker and the "How the AI works" page were looked at.
 
+**Checked on Windows (64-bit, Godot 4.7.2 + Python 3.14):** packaged as the standalone [`KUET-Royale-Setup.exe`](https://github.com/ajoycodes/KUET-Royale-Strategy-Game/releases/latest) installer, verified silent install/launch and `--uitest` through the bundled runtime. Running `unittest` on Windows requires `PYTHONUTF8=1` for the four CLI bridge stdout tests.
+
 **Not checked:**
 
-- No person has played it yet; the clicking above was done by the scripted player.
-- Nobody has listened to the sound or the film's score.
-- The film has been checked to end by itself and to fall back when its file is missing, but only this Mac has played it. A slow laptop may stutter on it; Skip still works.
-- It has not been run on Windows or Linux.
+- Nobody has tested the sound or the film's score thoroughly across different speakers/headsets.
+- The film has been checked to end by itself and to fall back when its file is missing on macOS and Windows; a slow laptop may stutter on it (Skip still works).
+- It has not been run on Linux.
 - Once, in a recorded test run, a call to Python never came back and the screen sat on "Thinking". It could not be made to happen again in seven more runs. A 15-second safety net was added so the game recovers by itself; the safety net itself has not been seen in action.
 
 **Known quirks, left as they are:**

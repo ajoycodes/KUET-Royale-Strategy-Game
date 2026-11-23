@@ -15,3 +15,6 @@ promo/vibe/public/
 promo/vibe/tools/.ground.npy
 promo/vibe/tools/__pycache__/
 promo/vibe/work/
+
+# Local build/installer output
+dist/
